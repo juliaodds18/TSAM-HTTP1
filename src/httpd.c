@@ -7,14 +7,16 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <poll.h>
+#include <limits.h>
 
 int main(int argc, char *argv[])
 {
-    int sockfd, funcError, on = 1;
+    // nfds = number of instances in pollfds array, originally only one (sockfd)
+    int sockfd, funcError, on = 1, nfds = 1;
     struct sockaddr_in server, client;
     char message[512];
     struct pollfd pollfds[200];
- 
+    int timeout = INT_MAX;
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -67,9 +69,13 @@ int main(int argc, char *argv[])
     memset(pollfds, 0, sizeof(pollfds));
     pollfds[0].fd = sockfd; 
     pollfds[0].events = POLLIN; 
-
+    // TImeout???
+    
     for (;;) {
-        // We first have to accept a TCP connection, connfd is a fresh
+        
+	funcError = poll(sockfd, nfds, timeout);   
+
+	// We first have to accept a TCP connection, connfd is a fresh
         // handle dedicated to this connection.
         socklen_t len = (socklen_t) sizeof(client);
         int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
