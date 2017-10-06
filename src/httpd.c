@@ -8,15 +8,21 @@
 #include <stdlib.h>
 #include <poll.h>
 #include <limits.h>
+#include <errno.h>
+
+#define TRUE  1
+#define FALSE 0
 
 int main(int argc, char *argv[])
 {
     // nfds = number of instances in pollfds array, originally only one (sockfd)
-    int sockfd, funcError, on = 1, nfds = 1;
+    int sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
     struct sockaddr_in server, client;
-    char message[512];
+    char buffer[1024];
     struct pollfd pollfds[200];
     int timeout = INT_MAX;
+    int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
+
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -71,15 +77,112 @@ int main(int argc, char *argv[])
     pollfds[0].events = POLLIN; 
     // TImeout???
     
-    for (;;) {
+    while (endServer == FALSE) {
         
-	funcError = poll(sockfd, nfds, timeout);   
+	funcError = poll(pollfds, nfds, timeout);   
+	
+	if (funcError < 0) {
+	    fprintf(stdout, "poll() failed"); 
+	    fflush(stdout);
+	    break;
+	}
+	if (funcError == 0) {
+	    fprintf(stdout, "poll() timed out, exiting"); 
+	    fflush(stdout); 
+	    break; 
+	}
+	
+	currSize = nfds; 
+	for (i = 0; i < currSize; i++) {
+	    
+	    // Loop through file descriptors, determine whether it is
+	    // the listening connection or an active connection 
+	    if (pollfds[i].revents == 0) 
+		continue; 
 
-	// We first have to accept a TCP connection, connfd is a fresh
-        // handle dedicated to this connection.
-        socklen_t len = (socklen_t) sizeof(client);
-        int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
+	    // revents needs to be POLLIN if not 0. Else, there is an error, end the server
+	    if (pollfds[i].revents != POLLIN) {
+		fprintf(stdout, "ERROR, REVENT NOT POLLIN");
+		fflush(stdout);  
+		break; 
+	    } 
 
+	    if (pollfds[i].fd == sockfd) {
+		// Listening descriptor is readable
+		
+		do {
+		    newfd = accept(sockfd, NULL, NULL); 
+
+		    if (errno != EWOULDBLOCK) { 
+			fprintf(stdout, "accept() failed"); 
+			fflush(stdout); 
+			endServer = TRUE;
+		    }
+
+		    // Add new connection to pollfd
+		    pollfds[nfds].fd = newfd; 
+		    pollfds[nfds].events = POLLIN; 
+		    nfds++;
+
+		} while (newfd != -1);	
+	    }
+
+	    else {
+		
+		// Existing connection is readable
+		closeConn = FALSE; 
+
+		do {
+		    
+		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer), 0); 
+
+		    if (funcError < 0) {
+			if (errno != EWOULDBLOCK) {
+
+			    fprintf(stdout, "recv() failed"); 
+			    fflush(stdout); 
+			    closeConn = TRUE; 
+			}
+			break; 
+		    }
+
+		    if (funcError == 0) {
+			fprintf(stdout, "Connection closed by client"); 
+			fflush(stdout); 
+			break; 
+		    }
+
+		    // DO STUFF HERE
+
+		} while (TRUE); 
+
+	   }
+
+	    if (closeConn) {
+		// Clean up connections that were closed
+		close(pollfds[i].fd);
+		pollfds[i].fd = -1; 
+		shrinkArray = TRUE; 
+	    }
+	}
+
+	if (shrinkArray) {
+
+	    for (i = 0; i < nfds; i++) {
+		if (pollfds[i].fd == -1) {
+		    for (j = i; i < nfds; j++) 
+			pollfds[j].fd = pollfds[j+1].fd; 
+		    nfds--;
+		}
+	    }
+
+	    shrinkArray = FALSE;
+	}
+
+
+
+
+        /*
         // Receive from connfd, not sockfd.
         ssize_t n = recv(connfd, message, sizeof(message) - 1, 0);
 
@@ -95,5 +198,6 @@ int main(int argc, char *argv[])
         // Close the connection.
         shutdown(connfd, SHUT_RDWR);
         close(connfd);
+	*/
     }
 }
