@@ -34,13 +34,12 @@ static GOptionEntry entries[] = {
 
 int main(int argc, char *argv[])
 {
-   
     // A GOptionContext struct defines which options are accepted by the commandline option parser
     GOptionContext *context;
     GError *error = NULL;
 
     // Set the name of our HTTP server
-    context = g_option_context_new ("Emru Can server");
+    context = g_option_context_new ("Emru Can server\n");
     g_option_context_add_main_entries(context, entries, NULL);  
 
     // Check if the parsing was successful
@@ -49,19 +48,20 @@ int main(int argc, char *argv[])
       g_critical("Parsing failed: %s:%s\n", argv[0], error->message);
       exit(0);
     }
-
-    int sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
+    
+    int port, sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
     struct sockaddr_in server, client;
     char buffer[1024];
     struct pollfd pollfds[200];
     int timeout = INT_MAX;
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
+    sscanf(argv[1], "%d", &port); 
 
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
     if (sockfd < 0) {
-	fprintf(stdout, "Socket() failed");
+	fprintf(stdout, "Socket() failed\n");
 	fflush(stdout); 
 	exit(-1); 
     }
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     funcError = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
     // Handle error if setsockopt fails
     if (funcError < 0) {
-	fprintf(stdout, "setsockopt() failed"); 
+	fprintf(stdout, "setsockopt() failed\n"); 
 	fflush(stdout); 
 	exit(-1); 
     } 
@@ -86,12 +86,12 @@ int main(int argc, char *argv[])
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = htonl(INADDR_ANY);
-    server.sin_port = htons(32000);
+    server.sin_port = htons(port);
     funcError = bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
-    
+
     // Handle error if bind() fails
     if (funcError < 0) {
-	fprintf(stdout, "bind() failed"); 
+	fprintf(stdout, "bind() failed\n"); 
 	fflush(stdout); 
 	exit(-1); 
     }
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     funcError = listen(sockfd, 1);
     // Handle error if listen() fails
     if (funcError < 0) {
-	fprintf(stdout, "listen() failed"); 
+	fprintf(stdout, "listen() failed\n"); 
 	fflush(stdout); 
 	exit(-1); 
     }
@@ -112,27 +112,23 @@ int main(int argc, char *argv[])
     // TImeout???
     
     while (endServer == FALSE) {
-    	fprintf(stdout, "HELLO THIS IS WHILE"); 
-	fflush(stdout); 
     
 	funcError = poll(pollfds, nfds, timeout);   
-	fprintf(stdout, "HELLO THIS AFTER POLL WELCOME"); 
-	fflush(stdout); 
 	
 	if (funcError < 0) {
-	    fprintf(stdout, "poll() failed"); 
+	    fprintf(stdout, "poll() failed\n"); 
 	    fflush(stdout);
 	    break;
 	}
 	if (funcError == 0) {
-	    fprintf(stdout, "poll() timed out, exiting"); 
+	    fprintf(stdout, "poll() timed out, exiting\n"); 
 	    fflush(stdout); 
 	    break; 
 	}
 	
 	currSize = nfds; 
 	for (i = 0; i < currSize; i++) {
-	    fprintf(stdout, "HELLO THIS IS FOR IN WHILE IN MAIN"); 
+	    fprintf(stdout, "HELLO THIS IS FOR IN WHILE IN MAIN\n"); 
 	    fflush(stdout);  
 	    // Loop through file descriptors, determine whether it is
 	    // the listening connection or an active connection 
@@ -141,21 +137,21 @@ int main(int argc, char *argv[])
 
 	    // revents needs to be POLLIN if not 0. Else, there is an error, end the server
 	    if (pollfds[i].revents != POLLIN) {
-		fprintf(stdout, "ERROR, REVENT NOT POLLIN");
+		fprintf(stdout, "ERROR, REVENT NOT POLLIN\n");
 		fflush(stdout);  
 		break; 
 	    } 
 
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
-		fprintf(stdout, "HELLO THIS IS LISTENING SOCKET"); 
+		fprintf(stdout, "HELLO THIS IS LISTENING SOCKET\n"); 
 		fflush(stdout); 
 	
 		do {
 		    newfd = accept(sockfd, NULL, NULL); 
 
 		    if (errno != EWOULDBLOCK) { 
-			fprintf(stdout, "accept() failed"); 
+			fprintf(stdout, "accept() failed\n"); 
 			fflush(stdout); 
 			endServer = TRUE;
 		    }
@@ -180,7 +176,7 @@ int main(int argc, char *argv[])
 		    if (funcError < 0) {
 			if (errno != EWOULDBLOCK) {
 
-			    fprintf(stdout, "recv() failed"); 
+			    fprintf(stdout, "recv() failed\n"); 
 			    fflush(stdout); 
 			    closeConn = TRUE; 
 			}
@@ -188,7 +184,7 @@ int main(int argc, char *argv[])
 		    }
 
 		    if (funcError == 0) {
-			fprintf(stdout, "Connection closed by client"); 
+			fprintf(stdout, "Connection closed by client\n"); 
 			fflush(stdout); 
 			break; 
 		    }
