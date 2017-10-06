@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     }
     
     int port, sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
-    struct sockaddr_in server, client;
+    struct sockaddr_in server;
     char buffer[1024];
     struct pollfd pollfds[200];
     int timeout = INT_MAX;
@@ -128,8 +128,8 @@ int main(int argc, char *argv[])
 	
 	currSize = nfds; 
 	for (i = 0; i < currSize; i++) {
-	    fprintf(stdout, "HELLO THIS IS FOR IN WHILE IN MAIN\n"); 
-	    fflush(stdout);  
+	     
+
 	    // Loop through file descriptors, determine whether it is
 	    // the listening connection or an active connection 
 	    if (pollfds[i].revents == 0) 
@@ -144,16 +144,17 @@ int main(int argc, char *argv[])
 
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
-		fprintf(stdout, "HELLO THIS IS LISTENING SOCKET\n"); 
-		fflush(stdout); 
+
+
 	
 		do {
 		    newfd = accept(sockfd, NULL, NULL); 
-
-		    if (errno != EWOULDBLOCK) { 
-			fprintf(stdout, "accept() failed\n"); 
-			fflush(stdout); 
-			endServer = TRUE;
+		    if (newfd < 0) {
+			if (errno != EWOULDBLOCK) { 
+			    fprintf(stdout, "accept() failed\n"); 
+			    fflush(stdout); 
+			    endServer = TRUE;
+			}
 		    }
 
 		    // Add new connection to pollfd
