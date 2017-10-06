@@ -8,10 +8,47 @@
 #include <stdlib.h>
 #include <poll.h>
 #include <limits.h>
+#include <glib.h>
+
+int listen_port = 0;
+
+/*struct GOptionEntry {
+  const gchar *long_name;
+  gchar        short_name;
+  gint         flags;
+
+  GOptionArg   arg;
+  gpointer     arg_data;
+  
+  const gchar *description;
+  const gchar *arg_description;
+};*/
+static GOptionEntry entries[] = {
+  {"port", 'p', 0, G_OPTION_ARG_INT, &listen_port,
+   "Port to bind to", NULL},
+  {NULL}
+};
 
 int main(int argc, char *argv[])
 {
     // nfds = number of instances in pollfds array, originally only one (sockfd)
+    
+    // A GOptionContext struct defines which options are accepted by the commandline option parser
+    GOptionContext *context;
+    GError *error = NULL;
+
+    // Set the name of our HTTP server
+    context = g_option_context_new ("Emru Can server");
+    g_option_context_add_main_entries(context, entries, NULL);  
+
+    // Check if the parsing was successful
+    if (!g_option_context_parse(context, &argc, &argv, &error))
+    {
+      g_critical("Parsing failed: %s:%s\n", argv[0], error->message);
+      exit(0);
+    }
+
+
     int sockfd, funcError, on = 1, nfds = 1;
     struct sockaddr_in server, client;
     char message[512];
@@ -73,7 +110,7 @@ int main(int argc, char *argv[])
     
     for (;;) {
         
-	funcError = poll(sockfd, nfds, timeout);   
+	funcError = poll(pollfds, nfds, timeout);   
 
 	// We first have to accept a TCP connection, connfd is a fresh
         // handle dedicated to this connection.
