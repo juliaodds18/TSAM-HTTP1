@@ -112,8 +112,12 @@ int main(int argc, char *argv[])
     // TImeout???
     
     while (endServer == FALSE) {
-        
+    	fprintf(stdout, "HELLO THIS IS WHILE"); 
+	fflush(stdout); 
+    
 	funcError = poll(pollfds, nfds, timeout);   
+	fprintf(stdout, "HELLO THIS AFTER POLL WELCOME"); 
+	fflush(stdout); 
 	
 	if (funcError < 0) {
 	    fprintf(stdout, "poll() failed"); 
@@ -128,7 +132,8 @@ int main(int argc, char *argv[])
 	
 	currSize = nfds; 
 	for (i = 0; i < currSize; i++) {
-	    
+	    fprintf(stdout, "HELLO THIS IS FOR IN WHILE IN MAIN"); 
+	    fflush(stdout);  
 	    // Loop through file descriptors, determine whether it is
 	    // the listening connection or an active connection 
 	    if (pollfds[i].revents == 0) 
@@ -143,7 +148,9 @@ int main(int argc, char *argv[])
 
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
-		
+		fprintf(stdout, "HELLO THIS IS LISTENING SOCKET"); 
+		fflush(stdout); 
+	
 		do {
 		    newfd = accept(sockfd, NULL, NULL); 
 
