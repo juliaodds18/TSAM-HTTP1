@@ -12,10 +12,6 @@
 #include <glib.h>
 
 
-#define TRUE  1
-#define FALSE 0
-
-
 int listen_port = 0;
 
 /*struct GOptionEntry {
@@ -54,7 +50,7 @@ int main(int argc, char *argv[])
       exit(0);
     }
 
-    int sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j:
+    int sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
     struct sockaddr_in server, client;
     char buffer[1024];
     struct pollfd pollfds[200];
