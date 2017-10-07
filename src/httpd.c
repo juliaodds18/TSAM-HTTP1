@@ -7,6 +7,32 @@
 #include <stdio.h>
 #include <glib.h>
 
+/************* STRUCTS ***********/
+
+// Struct for methods that are allowed
+typedef struct {
+    char *HEAD; 
+    char *POST;
+    char *GET; 
+} methods;
+
+// Struct for client request
+typedef struct Request {
+    methods method;
+    GString *host;
+    GString *path;
+    GString *pathPage;
+} Request;
+
+/************** Functions ***************/
+
+// Initialize the client request
+void initRequest(Request *request) {
+    request->host = g_string_new("");
+    request->path = g_string_new("");
+    request->pathPage = g_string_new("");
+}
+
 int main(int argc, char *argv[] )
 {
     int sockfd;
