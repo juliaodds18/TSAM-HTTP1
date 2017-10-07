@@ -49,16 +49,16 @@ int main(int argc, char *argv[])
       exit(0);
     }
     
-    int port, sockfd, funcError, on = 1, nfds = 1, currSize, newfd, i, j;
+    int port, sockfd = -1, funcError, on = 1, nfds = 1, currSize, newfd = -1, i, j;
     struct sockaddr_in server;
     char buffer[1024];
     struct pollfd pollfds[200];
-    int timeout = INT_MAX;
+    int timeout = 30*1000;
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     sscanf(argv[1], "%d", &port); 
 
     // Create and bind a TCP socket.
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     // Print error if socket failed
     if (sockfd < 0) {
 	fprintf(stdout, "Socket() failed\n");
@@ -112,7 +112,9 @@ int main(int argc, char *argv[])
     // TImeout???
     
     while (endServer == FALSE) {
-    
+        fprintf(stdout, "before poll\n"); 
+	fflush(stdout); 
+
 	funcError = poll(pollfds, nfds, timeout);   
 	
 	if (funcError < 0) {
@@ -126,10 +128,12 @@ int main(int argc, char *argv[])
 	    break; 
 	}
 	
+	fprintf(stdout, "going into for loop in while, poll done\n");
+	fflush(stdout); 
 	currSize = nfds; 
 	for (i = 0; i < currSize; i++) {
 	     
-
+	    
 	    // Loop through file descriptors, determine whether it is
 	    // the listening connection or an active connection 
 	    if (pollfds[i].revents == 0) 
@@ -144,23 +148,29 @@ int main(int argc, char *argv[])
 
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
-
-
 	
 		do {
-		    newfd = accept(sockfd, NULL, NULL); 
+		    fprintf(stdout, "trying to accept\n"); 
+		    fflush(stdout); 
+		    newfd = accept(sockfd, NULL, NULL);
+		    fprintf(stdout, "after accept whoo \n"); 
+		    fflush(stdout);  
 		    if (newfd < 0) {
 			if (errno != EWOULDBLOCK) { 
 			    fprintf(stdout, "accept() failed\n"); 
 			    fflush(stdout); 
 			    endServer = TRUE;
 			}
+			break;
 		    }
 
 		    // Add new connection to pollfd
 		    pollfds[nfds].fd = newfd; 
-		    pollfds[nfds].events = POLLIN; 
+		    pollfds[nfds].revents = POLLIN; 
 		    nfds++;
+		    fprintf(stdout, "Added new thing to thing\n"); 
+		    
+		    fflush(stdout); 
 
 		} while (newfd != -1);	
 	    }
@@ -169,7 +179,8 @@ int main(int argc, char *argv[])
 		
 		// Existing connection is readable
 		closeConn = FALSE; 
-
+		fprintf(stdout, "hello from elseeee"); 
+		fflush(stdout); 
 		do {
 		    
 		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer), 0); 
@@ -190,12 +201,15 @@ int main(int argc, char *argv[])
 			break; 
 		    }
 
-		    // DO STUFF HERE
+		    // DO STUFF HER
+		    fprintf(stdout, "THIS IS NOT A LISTENING CONNECTION ATTEND TO ME \n"); 
+		    fflush(stdout); 
 
 		} while (TRUE); 
 
 	   }
-
+	    fprintf(stdout, "hello after for-loop. do we make it here?\n"); 
+	    fflush(stdout);  
 	    if (closeConn) {
 		// Clean up connections that were closed
 		close(pollfds[i].fd);
@@ -203,7 +217,8 @@ int main(int argc, char *argv[])
 		shrinkArray = TRUE; 
 	    }
 	}
-
+	fprintf(stdout, "after do while (I think?)\n"); 
+	fflush(stdout); 
 	if (shrinkArray) {
 
 	    for (i = 0; i < nfds; i++) {
@@ -217,8 +232,8 @@ int main(int argc, char *argv[])
 	    shrinkArray = FALSE;
 	}
 
-
-
+	fprintf(stdout, "after shrinkarray\n"); 
+	fflush(stdout); 
         /*
         // Receive from connfd, not sockfd.
         ssize_t n = recv(connfd, message, sizeof(message) - 1, 0);
