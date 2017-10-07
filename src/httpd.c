@@ -12,6 +12,10 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
+/********* PUBLIC VARIABLES **********/
+struct pollfd pollfds[200];
+int nfds; 
+
 /************* STRUCTS ***********/
 
 // Struct for methods that are allowed
@@ -111,18 +115,33 @@ int createRequest(GString *gMessage) {
     return requestOk;
 }
 
+void signalHandler(int signal) {
+    if (signal == SIGINT) {
+	fprintf(stdout, "Caught SIGINT, shutting down all connections\n"); 
+	fflush(stdout); 
+
+	for (int i = 0; i < nfds; i++) {
+	    close(pollfds[i].fd);
+	}
+    }
+}
 
 
 
 int main(int argc, char *argv[])
-{    
-    int port, sockfd = -1, funcError, on = 1, nfds = 1, currSize, newfd = -1, i, j;
+{   
+
+    if (signal(SIGINT, signalHandler) == SIG_ERR) {
+	fprintf(stdout, "Cannot catch SIGINT\n"); 
+	fflush(stdout); 
+    }
+ 
+    int port, sockfd = -1, funcError, on = 1, currSize, newfd = -1, i, j;
     struct sockaddr_in server;
     char buffer[1024];
-    struct pollfd pollfds[200];
     int timeout = 30*1000;
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
-
+    nfds = 1;
     GString *gMessage = g_string_new("");
 
 
@@ -221,7 +240,8 @@ int main(int argc, char *argv[])
 	    // revents needs to be POLLIN if not 0. Else, there is an error, end the server
 	    if (pollfds[i].revents != POLLIN) {
 		fprintf(stdout, "ERROR, REVENT NOT POLLIN\n");
-		fflush(stdout);  
+		fflush(stdout); 
+		endServer = TRUE;  
 		break; 
 	    } 
 
