@@ -5,13 +5,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <glib.h>
 
 int main(int argc, char *argv[] )
 {
     int sockfd;
     struct sockaddr_in server, client;
-    char message[512];
+    char message[1024];
     int port; 
+    GString *gMessage = g_string_new("");
 
     sscanf(argv[1], "%d", &port); 
 
@@ -35,14 +37,20 @@ int main(int argc, char *argv[] )
         // handle dedicated to this connection.
         socklen_t len = (socklen_t) sizeof(client);
         int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
+ 	
+	// Empty the gstring before reuse
+	g_string_truncate (gMessage, 0);
 
         // Receive from connfd, not sockfd.
         ssize_t n = recv(connfd, message, sizeof(message) - 1, 0);
+        
+	g_string_append_len(gMessage, message, n);	
 
         message[n] = '\0';
-        fprintf(stdout, "Received:\n%s\n", message);
+        fprintf(stdout, "Received GString :\n%s\n", gMessage->str);
+        fflush(stdout);	
 
-        // Convert message to upper case.
+	// Convert message to upper case.
         for (int i = 0; i < n; ++i) message[i] = toupper(message[i]);
 
         // Send the message back.
