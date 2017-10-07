@@ -14,7 +14,9 @@
 
 /********* PUBLIC VARIABLES **********/
 struct pollfd pollfds[200];
-int nfds; 
+int nfds;
+GString *gMessage; 
+
 
 /************* STRUCTS ***********/
 
@@ -123,6 +125,7 @@ void signalHandler(int signal) {
 	for (int i = 0; i < nfds; i++) {
 	    close(pollfds[i].fd);
 	}
+	g_string_free(gMessage, TRUE); 
     }
 }
 
@@ -148,7 +151,7 @@ int main(int argc, char *argv[])
     int timeout = 30*1000;
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
-    GString *gMessage = g_string_new("");
+    gMessage = g_string_new("");
 
 
     sscanf(argv[1], "%d", &port); 
