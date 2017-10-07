@@ -72,7 +72,7 @@ int createRequest(GString *gMessage) {
     }
 
     // paring the path
-    g_string_assign(request.path, firstLine[1]);;
+    g_string_assign(request.path, firstLine[1]);
 
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
@@ -87,15 +87,21 @@ int createRequest(GString *gMessage) {
  
     if(startOfBody == NULL) {
 	// What to do what to do ??? 
-	return FALSE;
+	// return FALSE;
     }
     
     // Parse the message body
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
-    g_string_append(request.messageBody, payload_buffer);
+    g_string_assign(request.messageBody, payload_buffer);
 
-    fprintf(stdout, "request.messageBody %s\n", request.messageBody->str);
-    fflush(stdout);
+    gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
+
+    if(startOfQuery == NULL) {
+	g_string_assign(request.pathPage, request.path->str);
+    } 
+    else {
+       	
+    }
     return requestOk;
 }
 
