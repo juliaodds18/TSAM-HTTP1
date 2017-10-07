@@ -33,6 +33,12 @@ void initRequest(Request *request) {
     request->pathPage = g_string_new("");
 }
 
+void freeRequest(Request *request) {
+    g_string_free(request->host, TRUE); 
+    g_string_free(request->path, TRUE); 
+    g_string_free(request->pathPage, TRUE);  
+}
+
 int main(int argc, char *argv[] )
 {
     int sockfd;
