@@ -16,7 +16,7 @@
 struct pollfd pollfds[200];
 int nfds;
 GString *gMessage; 
-
+GString *response;
 
 /************* STRUCTS ***********/
 
@@ -46,6 +46,7 @@ void initRequest(Request *request) {
     request->messageBody = g_string_new("");
     request->query = g_string_new("");
     request->keepAlive = TRUE;
+    response = g_string_sized_new(1024);
 }
 
 void freeRequest(Request *request) {
@@ -54,6 +55,7 @@ void freeRequest(Request *request) {
     g_string_free(request->pathPage, TRUE);
     g_string_free(request->messageBody, TRUE);  
     g_string_free(request->query, TRUE);
+    g_string_free(response, TRUE);
 }
 
 int createRequest(GString *gMessage) {
@@ -142,7 +144,7 @@ int createRequest(GString *gMessage) {
 
 	// Check if there is Keep-alive connection
 	if (!(g_strcmp0(toLowerDelim, "connection"))) {
-	    if(g_strcmp0(splitOnDelim[1], "keep-alive")) {
+	    if(g_strcmp0(splitOnDelim[1], "keep-alive") || g_strcmp0(splitOnDelim[1], "close")) {
 		request.keepAlive = FALSE;	
 	    }
 	}
@@ -162,6 +164,11 @@ int createRequest(GString *gMessage) {
 
     return requestOk;
 }
+
+void sendRespons() {
+
+}
+
 
 void signalHandler(int signal) {
     if (signal == SIGINT) {
@@ -198,7 +205,6 @@ int main(int argc, char *argv[])
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
     gMessage = g_string_new("");
-
 
     sscanf(argv[1], "%d", &port); 
 
