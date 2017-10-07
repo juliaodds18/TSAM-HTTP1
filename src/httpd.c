@@ -33,6 +33,7 @@ typedef struct Request {
     GString *pathPage;
     GString *query;
     GString *messageBody;
+    int keepAlive;
 } Request;
 
 /************** Functions ***************/
@@ -44,6 +45,7 @@ void initRequest(Request *request) {
     request->pathPage = g_string_new("");
     request->messageBody = g_string_new("");
     request->query = g_string_new("");
+    request->keepAlive = TRUE;
 }
 
 void freeRequest(Request *request) {
@@ -86,9 +88,9 @@ int createRequest(GString *gMessage) {
     g_string_assign(request.path, firstLine[1]);
 
     // If the version is 1.0 not persistant connection
-    //if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
-        // not KEEP A LIVE ALIVE LIE LIFE LIVE LIFED A LIVE FOR LIFE LIVE 
-    //}
+    if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
+        request.keepAlive = FALSE; 
+    }
  
     g_strfreev(firstLine); 
 
@@ -119,8 +121,45 @@ int createRequest(GString *gMessage) {
 	g_string_assign(request.query, startOfQuery[1]);
     }
 
-    g_strfreev(startOfQuery); 
-    
+    // Split the header on lines 
+    gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2); 
+    gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
+   
+    // iterate through the header
+    for(int i = 1; splitHeaderLines[i]; i++) {
+        if (strlen(splitHeaderLines[i]) == 0) {
+	    continue;
+	}
+
+	// Split the lines and set to lowercase
+	gchar **splitOnDelim = g_strsplit_set(splitHeaderLines[i], ":", 2);
+        gchar *toLowerDelim = g_ascii_strdown(splitOnDelim[0], -1);        
+	
+	// Set the host 
+	if (!(g_strcmp0(toLowerDelim, "host"))) {
+     	    g_string_assign(request.host, splitOnDelim[1]);
+        }
+
+	// Check if there is Keep-alive connection
+	if (!(g_strcmp0(toLowerDelim, "connection"))) {
+	    if(g_strcmp0(splitOnDelim[1], "keep-alive")) {
+		request.keepAlive = FALSE;	
+	    }
+	}
+	g_strfreev(splitOnDelim);
+
+    }
+    // Check if there was a host
+    if (request.host == NULL) {
+	printf("Host not found, close the connection\n");
+            requestOk = FALSE;
+    }
+
+    // Free all variables
+    g_strfreev(getHeader);
+    g_strfreev(splitHeaderLines);
+    g_strfreev(startOfQuery);
+
     return requestOk;
 }
 
