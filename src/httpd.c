@@ -68,13 +68,10 @@ int createRequest(GString *gMessage) {
 	return FALSE;
     }
 
-    g_string_assign(request.path, firstLine[1]);
-    fprintf(stdout, "g_strcmp0(firstLine[2], 1.0 : %s\n", firstLine[2]);
-    fflush(stdout);
-    if(!(g_strcmp0(firstLine[2], "HTTP/1.0"))) {
-        fprintf(stdout, "IM old \n");
-	fflush(stdout);
-	    // do stuff
+    g_string_assign(request.path, firstLine[1]);;
+
+    if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
+        // not KEEP A LIVE ALIVE LIE LIFE LIVE LIFED A LIVE FOR LIFE LIVE 
     }
 
     return TRUE;
