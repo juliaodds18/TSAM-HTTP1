@@ -10,15 +10,13 @@
 /************* STRUCTS ***********/
 
 // Struct for methods that are allowed
-typedef struct {
-    char *HEAD; 
-    char *POST;
-    char *GET; 
-} methods;
+typedef enum {HEAD, POST, GET} Methods;
+
+
 
 // Struct for client request
 typedef struct Request {
-    methods method;
+    Methods method;
     GString *host;
     GString *path;
     GString *pathPage;
@@ -33,11 +31,36 @@ void initRequest(Request *request) {
     request->pathPage = g_string_new("");
 }
 
+
 void freeRequest(Request *request) {
     g_string_free(request->host, TRUE); 
     g_string_free(request->path, TRUE); 
     g_string_free(request->pathPage, TRUE);  
 }
+
+
+int createRequest(GString *gMessage) {
+    Request request;
+    initRequest(&request);
+
+    // Set the method of request 	
+    if ((g_str_has_prefix(gMessage->str, "GET"))) {
+        request.method =  GET;
+    }
+    else if(g_str_has_prefix(gMessage->str, "POST")) {
+	request.method = POST;
+    }
+    else if(g_str_has_prefix(gMessage->str, "HEAD")) {
+        request.method = HEAD;
+    }
+    else {
+	// close the connection 
+	return FALSE;
+    }
+    return TRUE;
+}
+
+
 
 int main(int argc, char *argv[] )
 {
@@ -71,16 +94,39 @@ int main(int argc, char *argv[] )
         int connfd = accept(sockfd, (struct sockaddr *) &client, &len);
  	
 	// Empty the gstring before reuse
-	g_string_truncate (gMessage, 0);
+	g_string_truncate(gMessage, 0);
 
         // Receive from connfd, not sockfd.
         ssize_t n = recv(connfd, message, sizeof(message) - 1, 0);
-        
-	g_string_append_len(gMessage, message, n);	
+	
+	if (n < 0) {
+            //if (errno != EWOULDBLOCK) {
+	        fprintf(stdout, "recv() failed\n");
+                fflush(stdout);
+		// Have to close the connection 
+            //}
+         }
+
+         if (n == 0) {
+             fprintf(stdout, "Connection closed by client\n");
+             fflush(stdout);
+        }
+
+        // Parse the message into Gstring
+        g_string_append_len(gMessage, message, n);	
+
+	// If the method is unknown close the connection
+	if(!createRequest(gMessage)) {
+	    // Close the connection.
+	    shutdown(connfd, SHUT_RDWR);
+	    close(connfd);
+	}
 
         message[n] = '\0';
         fprintf(stdout, "Received GString :\n%s\n", gMessage->str);
         fflush(stdout);	
+	
+		
 
 	// Convert message to upper case.
         for (int i = 0; i < n; ++i) message[i] = toupper(message[i]);
