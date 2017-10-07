@@ -92,6 +92,7 @@ int createRequest(GString *gMessage) {
 
     // Get the message body
     gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");
+    
     gchar payload_buffer[gMessage->len];
  
     if(startOfBody == NULL) {
@@ -102,7 +103,8 @@ int createRequest(GString *gMessage) {
     // Parse the message body
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
     g_string_assign(request.messageBody, payload_buffer);
-
+    fprintf(stdout, "\n\n\nmessageBody: %s\n", request.messageBody->str);
+    fflush(stdout);
     //  gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
     gchar **startOfQuery = g_strsplit(request.path->str, "?", 2);
 
@@ -116,6 +118,7 @@ int createRequest(GString *gMessage) {
     }
 
     g_strfreev(startOfQuery); 
+    
     return requestOk;
 }
 
