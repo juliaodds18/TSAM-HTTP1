@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <glib.h>
+#include <glib/gprintf.h>
 
 /************* STRUCTS ***********/
 
@@ -43,20 +44,39 @@ int createRequest(GString *gMessage) {
     Request request;
     initRequest(&request);
 
+    // Get the first line of the message, split it to method
+    // path and protocol/version
+    gchar **firstLine = g_strsplit(gMessage->str, " ", 4);
+    
+    // If the firs line is smaller than 3 close the connection
+    if(g_strv_length(firstLine) < 3) {
+	return FALSE;
+    }
+    
     // Set the method of request 	
-    if ((g_str_has_prefix(gMessage->str, "GET"))) {
+    if (!(g_strcmp0(firstLine[0], "GET"))) {
         request.method =  GET;
     }
-    else if(g_str_has_prefix(gMessage->str, "POST")) {
+    else if(!(g_strcmp0(firstLine[0], "POST"))) {
 	request.method = POST;
     }
-    else if(g_str_has_prefix(gMessage->str, "HEAD")) {
+    else if(!(g_strcmp0(firstLine[0], "HEAD"))) {
         request.method = HEAD;
     }
     else {
 	// close the connection 
 	return FALSE;
     }
+
+    g_string_assign(request.path, firstLine[1]);
+    fprintf(stdout, "g_strcmp0(firstLine[2], 1.0 : %s\n", firstLine[2]);
+    fflush(stdout);
+    if(!(g_strcmp0(firstLine[2], "HTTP/1.0"))) {
+        fprintf(stdout, "IM old \n");
+	fflush(stdout);
+	    // do stuff
+    }
+
     return TRUE;
 }
 
