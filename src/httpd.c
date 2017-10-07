@@ -129,7 +129,13 @@ void signalHandler(int signal) {
 
 
 int main(int argc, char *argv[])
-{   
+{  
+    // Port number is missing, nothing to be done     
+    if (argc != 2) {
+	fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
+	fflush(stdout);
+	exit(-1);    
+    } 
 
     if (signal(SIGINT, signalHandler) == SIG_ERR) {
 	fprintf(stdout, "Cannot catch SIGINT\n"); 
