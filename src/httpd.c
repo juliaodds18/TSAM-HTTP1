@@ -29,6 +29,7 @@ typedef struct Request {
     GString *host;
     GString *path;
     GString *pathPage;
+    GString *query;
     GString *messageBody;
 } Request;
 
@@ -40,6 +41,7 @@ void initRequest(Request *request) {
     request->path = g_string_new("");
     request->pathPage = g_string_new("");
     request->messageBody = g_string_new("");
+    request->query = g_string_new("");
 }
 
 void freeRequest(Request *request) {
@@ -47,6 +49,7 @@ void freeRequest(Request *request) {
     g_string_free(request->path, TRUE); 
     g_string_free(request->pathPage, TRUE);
     g_string_free(request->messageBody, TRUE);  
+    g_string_free(request->query, TRUE);
 }
 
 int createRequest(GString *gMessage) {
@@ -100,18 +103,19 @@ int createRequest(GString *gMessage) {
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
     g_string_assign(request.messageBody, payload_buffer);
 
-    gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
+    //  gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
+    gchar **startOfQuery = g_strsplit(request.path->str, "?", 2);
 
+    // Parse the path without the query    
+    g_string_assign(request.pathPage, startOfQuery[0]);
+    
     // Check if there is query 
-    if(startOfQuery == NULL) {
-	fprintf(stdout, "\n\nim in here \n\n");
-	fflush(stdout);
-	g_string_assign(request.pathPage, request.path->str);
-    } 
-    else {
-       	fprintf(stdout, "\n\nim not suppose to be here \n\n");
-        fflush(stdout);
+    if(startOfQuery[1] != NULL) {
+	// Parse the query
+	g_string_assign(request.query, startOfQuery[1]);
     }
+
+    g_strfreev(startOfQuery); 
     return requestOk;
 }
 
