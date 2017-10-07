@@ -21,6 +21,7 @@ typedef struct Request {
     GString *host;
     GString *path;
     GString *pathPage;
+    GString *messageBody;
 } Request;
 
 /************** Functions ***************/
@@ -30,30 +31,32 @@ void initRequest(Request *request) {
     request->host = g_string_new("");
     request->path = g_string_new("");
     request->pathPage = g_string_new("");
+    request->messageBody = g_string_new("");
 }
 
 
 void freeRequest(Request *request) {
     g_string_free(request->host, TRUE); 
     g_string_free(request->path, TRUE); 
-    g_string_free(request->pathPage, TRUE);  
+    g_string_free(request->pathPage, TRUE);
+    g_string_free(request->messageBody, TRUE);  
 }
 
 
 int createRequest(GString *gMessage) {
     Request request;
     initRequest(&request);
-
+    int requestOk = TRUE;
     // Get the first line of the message, split it to method
     // path and protocol/version
-    gchar **firstLine = g_strsplit(gMessage->str, " ", 4);
+    gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
     
     // If the firs line is smaller than 3 close the connection
     if(g_strv_length(firstLine) < 3) {
-	return FALSE;
+	requestOk = FALSE;
     }
     
-    // Set the method of request 	
+    // Parsing the method	
     if (!(g_strcmp0(firstLine[0], "GET"))) {
         request.method =  GET;
     }
@@ -65,16 +68,35 @@ int createRequest(GString *gMessage) {
     }
     else {
 	// close the connection 
-	return FALSE;
+	requestOk = FALSE;
     }
 
+    // paring the path
     g_string_assign(request.path, firstLine[1]);;
 
+    // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
         // not KEEP A LIVE ALIVE LIE LIFE LIVE LIFED A LIVE FOR LIFE LIVE 
     }
+ 
+    g_strfreev(firstLine); 
 
-    return TRUE;
+    // Get the message body
+    gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");
+    gchar payload_buffer[gMessage->len];
+ 
+    if(startOfBody == NULL) {
+	// What to do what to do ??? 
+	return FALSE;
+    }
+    
+    // Parse the message body
+    g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
+    g_string_append(request.messageBody, payload_buffer);
+
+    fprintf(stdout, "request.messageBody %s\n", request.messageBody->str);
+    fflush(stdout);
+    return requestOk;
 }
 
 
