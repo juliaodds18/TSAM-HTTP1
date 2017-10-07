@@ -34,14 +34,12 @@ void initRequest(Request *request) {
     request->messageBody = g_string_new("");
 }
 
-
 void freeRequest(Request *request) {
     g_string_free(request->host, TRUE); 
     g_string_free(request->path, TRUE); 
     g_string_free(request->pathPage, TRUE);
     g_string_free(request->messageBody, TRUE);  
 }
-
 
 int createRequest(GString *gMessage) {
     Request request;
@@ -75,9 +73,9 @@ int createRequest(GString *gMessage) {
     g_string_assign(request.path, firstLine[1]);
 
     // If the version is 1.0 not persistant connection
-    if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
+    //if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
         // not KEEP A LIVE ALIVE LIE LIFE LIVE LIFED A LIVE FOR LIFE LIVE 
-    }
+    //}
  
     g_strfreev(firstLine); 
 
@@ -96,11 +94,15 @@ int createRequest(GString *gMessage) {
 
     gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
 
+    // Check if there is query 
     if(startOfQuery == NULL) {
+	fprintf(stdout, "\n\nim in here \n\n");
+	fflush(stdout);
 	g_string_assign(request.pathPage, request.path->str);
     } 
     else {
-       	
+       	fprintf(stdout, "\n\nim not suppose to be here \n\n");
+        fflush(stdout);
     }
     return requestOk;
 }
@@ -169,8 +171,7 @@ int main(int argc, char *argv[] )
 
         message[n] = '\0';
         fprintf(stdout, "Received GString :\n%s\n", gMessage->str);
-        fflush(stdout);	
-	
+        fflush(stdout);
 		
 
 	// Convert message to upper case.
