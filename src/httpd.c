@@ -14,7 +14,9 @@
 
 /********* PUBLIC VARIABLES **********/
 struct pollfd pollfds[200];
-int nfds; 
+int nfds;
+GString *gMessage; 
+
 
 /************* STRUCTS ***********/
 
@@ -130,13 +132,20 @@ void signalHandler(int signal) {
 	for (int i = 0; i < nfds; i++) {
 	    close(pollfds[i].fd);
 	}
+	g_string_free(gMessage, TRUE); 
     }
 }
 
 
 
 int main(int argc, char *argv[])
-{   
+{  
+    // Port number is missing, nothing to be done     
+    if (argc != 2) {
+	fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
+	fflush(stdout);
+	exit(-1);    
+    } 
 
     if (signal(SIGINT, signalHandler) == SIG_ERR) {
 	fprintf(stdout, "Cannot catch SIGINT\n"); 
@@ -149,7 +158,7 @@ int main(int argc, char *argv[])
     int timeout = 30*1000;
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
-    GString *gMessage = g_string_new("");
+    gMessage = g_string_new("");
 
 
     sscanf(argv[1], "%d", &port); 
