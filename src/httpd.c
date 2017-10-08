@@ -40,6 +40,7 @@ Request request;
 GString *response;
 int requestOk;
 int sockfd;
+
 /************** Functions ***************/
 
 // Initialize the client request
@@ -68,8 +69,8 @@ void freeRequest() {
 void closeConnection() {
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
+    freeRequest();
     exit(1);
-    //freeRequest();
 }
 
 void logMessage(int responseCode) {
@@ -125,7 +126,7 @@ void sendBadRequest() {
         g_string_append(response, "HTTP/1.1 400 Bad Request\r\n");
     }
     else {
-        g_string_append(response, "HTTP/1.0 200 OK\r\n");
+        g_string_append(response, "HTTP/1.0 400 Bad Request\r\n");
     }
     time_t t = time(NULL);
     struct tm *currentTime = gmtime(&t);
@@ -300,7 +301,7 @@ int createRequest(GString *gMessage) {
     if(!(requestOk = parseHeader(request))) {
 	requestOk =  FALSE;
     }
- 
+  
     // Check is requestOk is true or false, send the right
     // response to the client and write it to the logfile 
     if(requestOk) {
@@ -495,9 +496,10 @@ int main(int argc, char *argv[])
 
 		    // If the method is unknown close the connection
 		    if(!createRequest(gMessage)) {
-	    		// Close the connectioni
-	    		send(pollfds[i].fd, response->str, response->len, 0);
-			closeConn = TRUE; 
+   	    		// Close the connectioni
+   	    		send(pollfds[i].fd, response->str, response->len, 0);
+   			closeConn = TRUE; 
+			closeConnection();
 		    }
 		    else {
 			send(pollfds[i].fd, response->str, response->len, 0);
@@ -507,17 +509,14 @@ int main(int argc, char *argv[])
 
 		} while (TRUE); 
 
-	    }
-	    
-	    
-	    if (closeConn) {
+	    }	    
+	   if (closeConn) {
 		// Clean up connections that were closed
 		close(pollfds[i].fd);
 		pollfds[i].fd = -1; 
 		shrinkArray = TRUE; 
 	    }
-	}
-
+	} 
 
 	if (shrinkArray) {
 
@@ -531,7 +530,6 @@ int main(int argc, char *argv[])
 
 	    shrinkArray = FALSE;
 	}
-       
     }
     closeConnection();
 }
