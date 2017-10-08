@@ -17,6 +17,7 @@ struct pollfd pollfds[200];
 int nfds;
 GString *gMessage; 
 GString *response;
+GString *responseCode;
 
 /************* STRUCTS ***********/
 
@@ -56,6 +57,7 @@ void freeRequest(Request *request) {
     g_string_free(request->messageBody, TRUE);  
     g_string_free(request->query, TRUE);
     g_string_free(response, TRUE);
+    g_string_free(responseCode, TRUE);
 }
 
 int createRequest(GString *gMessage) {
@@ -92,6 +94,11 @@ int createRequest(GString *gMessage) {
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
         request.keepAlive = FALSE; 
+    }
+
+    // Check if the HTTP version is supprted    
+    if(!g_str_has_prefix(firstLine[2], "HTTP/1.0") && !g_str_has_prefix(firstLine[2], "HTTP/1.1")) {
+	requestOk = FALSE;
     }
  
     g_strfreev(firstLine); 
@@ -369,7 +376,9 @@ int main(int argc, char *argv[])
 		    // If the method is unknown close the connection
 		    if(!createRequest(gMessage)) {
 	    		// Close the connection.
-	    		closeConn = TRUE; 
+	    		// Send bad request response to client  
+			sendRespons();
+			closeConn = TRUE; 
 		    }
 
         	    buffer[size] = '\0';
