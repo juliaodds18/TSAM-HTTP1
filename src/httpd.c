@@ -39,33 +39,37 @@ FILE *logFile;
 Request request;
 GString *response;
 int requestOk;
+int sockfd;
 /************** Functions ***************/
 
 // Initialize the client request
-void initRequest(Request *request) {
-    request->host = g_string_new("");
-    request->path = g_string_new("");
-    request->pathPage = g_string_new("");
-    request->messageBody = g_string_new("");
-    request->query = g_string_new("");
-    request->keepAlive = TRUE;
-    request->version = TRUE;
+void initRequest() {
+    request.host = g_string_new("");
+    request.path = g_string_new("");
+    request.pathPage = g_string_new("");
+    request.messageBody = g_string_new("");
+    request.query = g_string_new("");
+    request.keepAlive = TRUE;
+    request.version = TRUE;
     response = g_string_sized_new(1024);
     requestOk = TRUE;
+    sockfd = -1;
 }
 
-void freeRequest(Request *request) {
-    g_string_free(request->host, TRUE); 
-    g_string_free(request->path, TRUE); 
-    g_string_free(request->pathPage, TRUE);
-    g_string_free(request->messageBody, TRUE);  
-    g_string_free(request->query, TRUE);
-    g_string_free(gMessage, TRUE);
+void freeRequest() {
+    g_string_free(request.host, TRUE); 
+    g_string_free(request.path, TRUE); 
+    g_string_free(request.pathPage, TRUE);
+    g_string_free(request.messageBody, TRUE);  
+    g_string_free(request.query, TRUE);
     g_string_free(response, TRUE);
 }
 
 void closeConnection() {
-    
+    shutdown(sockfd, SHUT_RDWR);
+    close(sockfd);
+    exit(1);
+    //freeRequest();
 }
 
 void logMessage(int responseCode) {
@@ -81,11 +85,7 @@ void logMessage(int responseCode) {
     char timeBuffer[256];
     time_t t = time(NULL); 
     struct tm *currentTime = localtime(&t); 
-   
-
-
-    strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime); 
-    //fprintf(stdout, "%s\n ", timeBuffer);    
+    strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime);  
 
     GString *logString = g_string_new(NULL); 
     g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer, 
@@ -94,11 +94,7 @@ void logMessage(int responseCode) {
 					request.pathPage->str,
 					responseCode ); 
 
-    //fprintf(stdout, "%s\n", logString->str); 
-    //fflush(stdout); 
-
     fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile); 
-
  
     fclose(logFile); 
 }
@@ -139,10 +135,10 @@ void sendBadRequest() {
     char timeBuffer[256];
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
     g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
-    g_string_append(response, "Server: Emre can \r\n");
+    g_string_append(response, "Server: Emre Can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
-    g_string_append(response, "Connection: Closed\r\n");
+    g_string_append(response, "Connection: Closed\r\n\r\n");
 }
 
 void sendOKRequest() {
@@ -160,7 +156,7 @@ void sendOKRequest() {
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
 
     g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
-    g_string_append(response, "Server: Emre can \r\n");
+    g_string_append(response, "Server: Emre Can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
     g_string_append(response, "Accept-Ranges: bytes\r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
@@ -169,21 +165,16 @@ void sendOKRequest() {
 
     // Check if the connection is keep-alive
     if(request.keepAlive) {
-    	g_string_append(response, "Connection: Keep-Alive\r\n");
+    	g_string_append(response, "Connection: Keep-Alive\r\n\r\n");
     }
     else {
-	g_string_append(response, "Connection: Closed\r\n");
+	g_string_append(response, "Connection: Closed\r\n\r\n");
     }
 
    // Send the message body if its not HEAD request 
    if (request.method != HEAD) {
         g_string_append(response, request.messageBody->str); 
     }
-
-    //send(connection->conn_fd, response->str, response->len, 0);;
-
-    fprintf(stdout, "\n\n\nResponse is %s\n\n", response->str);
-    fflush(stdout);
 }
 
 int ParsingFirstLine() {
@@ -207,8 +198,6 @@ int ParsingFirstLine() {
 	 request.method = HEAD;
     }
     else {
-        fprintf(stdout, "Method: %s\n", firstLine[0]);
-    fflush(stdout);
         // close the connection
         requestOk = FALSE;
     }
@@ -303,10 +292,13 @@ int createRequest(GString *gMessage) {
 
     g_strfreev(startOfQuery); 
  
+    // Check if the parseHeader returns true or false
     if(!(requestOk = parseHeader(request))) {
 	requestOk =  FALSE;
     }
  
+    // Check is requestOk is true or false, send the right
+    // response to the client and write it to the logfile 
     if(requestOk) {
         sendOKRequest(request); 
 	logMessage(200);  
@@ -327,12 +319,14 @@ void signalHandler(int signal) {
 	for (int i = 0; i < nfds; i++) {
 	    close(pollfds[i].fd);
 	}
-	g_string_free(gMessage, TRUE); 
+        closeConnection(); 
     }
 }
 
 int main(int argc, char *argv[])
 {  
+    fprintf(stdout, "Connected to the Emre Can server\n");
+    fflush(stdout);
     // Port number is missing, nothing to be done     
     if (argc != 2) {
 	fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
@@ -345,7 +339,7 @@ int main(int argc, char *argv[])
 	fflush(stdout); 
     }
  
-    int port, sockfd = -1, funcError, on = 1, currSize, newfd = -1, i, j;
+    int port, funcError, on = 1, currSize, newfd = -1, i, j;
     struct sockaddr_in server;
     char buffer[1024];
     int timeout = 30*1000;
@@ -414,10 +408,7 @@ int main(int argc, char *argv[])
 
 
 
-    while (endServer == FALSE) {
-        fprintf(stdout, "Calling poll()... \n"); 
-	fflush(stdout); 
-
+    while (endServer == FALSE) { 
 	funcError = poll(pollfds, nfds, timeout);   
 	
 	if (funcError < 0) {
@@ -431,9 +422,6 @@ int main(int argc, char *argv[])
 	    break; 
 	}
 
-	
-	fprintf(stdout, "going into for loop in while, poll done\n");
-	fflush(stdout); 
 	currSize = nfds; 
 	for (i = 0; i < currSize; i++) {
 	     
@@ -441,29 +429,20 @@ int main(int argc, char *argv[])
 	    // Loop through file descriptors, determine whether it is
 	    // the listening connection or an active connection 
 	    if (pollfds[i].revents == 0) {
-		fprintf(stdout, "this is a revent == 0\n"); 
-		fflush(stdout);  
 		continue; 
 	    }
 
 	    // revents needs to be POLLIN if not 0. Else, there is an error, end the server
 	    if (pollfds[i].revents != POLLIN) {
-		fprintf(stdout, "ERROR, REVENT NOT POLLIN\n");
-		fflush(stdout); 
 		endServer = TRUE;  
 		break; 
 	    } 
-
-	    fprintf(stdout, "pollfds[i].fd: %d\n", pollfds[i].fd); 
+ 
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
 	
 		do {
-		    fprintf(stdout, "trying to accept\n"); 
-		    fflush(stdout); 
-		    newfd = accept(sockfd, NULL, NULL);
-		    fprintf(stdout, "after accept whoo \n"); 
-		    fflush(stdout);  
+		    newfd = accept(sockfd, NULL, NULL);  
 		    if (newfd < 0) {
 			if (errno != EWOULDBLOCK) { 
 			    fprintf(stdout, "accept() failed\n"); 
@@ -477,9 +456,6 @@ int main(int argc, char *argv[])
 		    pollfds[nfds].fd = newfd; 
 		    pollfds[nfds].events = POLLIN; 
 		    nfds++;
-		    fprintf(stdout, "Added new thing to thing\n"); 
-		    
-		    fflush(stdout); 
 
 		} while (newfd != -1);	
 	    }
@@ -487,9 +463,7 @@ int main(int argc, char *argv[])
 
 		
 		// Existing connection is readable
-		closeConn = FALSE; 
-		fprintf(stdout, "hello from elseeee"); 
-		fflush(stdout); 
+		closeConn = FALSE;  
 		do {
 		    
 		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer) - 1, 0); 
@@ -506,7 +480,8 @@ int main(int argc, char *argv[])
 
 		    if (funcError == 0) {
 			fprintf(stdout, "Connection closed by client\n"); 
-			fflush(stdout); 
+			fflush(stdout);
+			closeConnection(); 
 			break; 
 		    }
 
@@ -525,8 +500,6 @@ int main(int argc, char *argv[])
 		    }
 
         	    buffer[size] = '\0';
-        	    fprintf(stdout, "Received GString :\n%s\n", gMessage->str);
-        	    fflush(stdout);	
 
 		} while (TRUE); 
 
@@ -556,4 +529,5 @@ int main(int argc, char *argv[])
 	}
        
     }
+    closeConnection();
 }
