@@ -65,7 +65,7 @@ void freeRequest(Request *request) {
 
 void logMessage(int responseCode) {
 
-    logFile = fopen("logfile.log", "w"); 
+    logFile = fopen("logfile.log", "a"); 
     if (logFile == NULL) {
 	fprintf(stdout, "Opening logfile failed"); 
 	fflush(stdout); 
