@@ -65,9 +65,19 @@ void sendOKRequest(Request request) {
     // Append to the response
     g_string_append(response, "HTTP/1.1 200 OK\r\n");
     //g_string_append_printf(response, "Date: %s\r\n", date);
-    g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
-    g_string_append(response, "Server: Emre can server\r\n");
+    g_string_append(response, "Server: Emre can \r\n");
+    g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
+    g_string_append(response, "Accept-Ranges: bytes\r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
+    g_string_append(response, "Content-Type: text/html\r\n");
+
+    if(request.keepAlive) {
+    	g_string_append(response, "Connection: Keep-Alive\r\n");
+    }
+    else {
+	g_string_append(response, "Connection: Closed\r\n");
+    }
+
     fprintf(stdout, "\n\n\nResponse is %s\n\n", response->str);
     fflush(stdout);
 }
@@ -101,8 +111,11 @@ int ParsingFirstLine(Request request) {
     // paring the path
     g_string_assign(request.path, firstLine[1]);
 
+
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
+	fprintf(stdout, "\n\n\n inni i http 1. 0 \n\n");
+    fflush(stdout);
         request.keepAlive = FALSE;
     }
 
