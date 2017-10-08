@@ -70,6 +70,7 @@ void closeConnection() {
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
     freeRequest();
+    exit(1);
 }
 
 void logMessage(int responseCode) {
@@ -123,7 +124,7 @@ void sendBadRequest() {
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
-    g_string_append(response, "Connection: Closed\r\n");
+    g_string_append(response, "Connection: Closed\r\n\r\n");
 }
 
 void sendOKRequest() {
@@ -149,10 +150,10 @@ void sendOKRequest() {
 
     // Check if the connection is keep-alive
     if(request.keepAlive) {
-    	g_string_append(response, "Connection: Keep-Alive\r\n");
+    	g_string_append(response, "Connection: Keep-Alive\r\n\r\n");
     }
     else {
-	g_string_append(response, "Connection: Closed\r\n");
+	g_string_append(response, "Connection: Closed\r\n\r\n");
     }
 
    // Send the message body if its not HEAD request 
@@ -486,7 +487,8 @@ int main(int argc, char *argv[])
 
 		    if (funcError == 0) {
 			fprintf(stdout, "Connection closed by client\n"); 
-			fflush(stdout); 
+			fflush(stdout);
+			closeConnection(); 
 			break; 
 		    }
 
