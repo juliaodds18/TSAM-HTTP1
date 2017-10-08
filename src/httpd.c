@@ -100,11 +100,11 @@ void logMessage(int responseCode) {
     fclose(logFile); 
 }
 
+
+
 GString* createHTMLPage(gchar *body) {
    
    GString *html = g_string_new("<!doctype html>\r\n<html>\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>Test page.</title>\r\n</head>\r\n<body>\r\n");
-
-
 
    if (g_strcmp0(body, "") != 0) { 
 	g_string_append_printf(html, "%s\r\n", body); 
@@ -119,6 +119,8 @@ GString* createHTMLPage(gchar *body) {
    
     return html;
 }
+
+
 
 void sendBadRequest() {
     if(request.version) {
@@ -166,14 +168,16 @@ void sendOKRequest() {
     else {
 	g_string_append(response, "Connection: Closed\r\n");
     }
-
      
 
     // Send the message body if its not HEAD request 
-    if (request.method != HEAD) { 
+    if (request.method == POST) { 
 	g_string_append(response, createHTMLPage(request.messageBody->str)->str ); 	
     }
-    g_string_append(response, "\r\n\r\n"); 
+    else if (request.method == GET) {
+	g_string_append(response, createHTMLPage("")->str); 
+    }
+    g_string_append(response, "\r\n"); 
 }
 
 int ParsingFirstLine() {
@@ -501,15 +505,14 @@ int main(int argc, char *argv[])
         	    buffer[size] = '\0';
 
 		} while (TRUE); 
-
-	   }
-	    
-	   if (closeConn) {
-		// Clean up connections that were closed
-		close(pollfds[i].fd);
-		pollfds[i].fd = -1; 
-		shrinkArray = TRUE; 
-	    }
+	        
+		if (closeConn) {
+		    // Clean up connections that were closed
+		    close(pollfds[i].fd);
+		    pollfds[i].fd = -1; 
+		    shrinkArray = TRUE; 
+		}
+	    }    
 	} 
 
 	if (shrinkArray) {
