@@ -201,9 +201,19 @@ void logMessage() {
     }
     
     // Create string that contains current time
-   
-    
+    char timeBuffer[256];
+    time_t t = time(NULL); 
+    struct tm *currentTime = localtime(&t); 
 
+    strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime); 
+    fprintf(stdout, "%s\n ", timeBuffer);    
+    
+    //GString host = request.host; 
+
+
+
+
+    fflush(stdout); 
 
 
 
@@ -232,10 +242,6 @@ int main(int argc, char *argv[])
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
     gMessage = g_string_new("");
-
-    logMessage(); 
-
-    //Create a new log file
 
 
     sscanf(argv[1], "%d", &port); 
@@ -293,13 +299,13 @@ int main(int argc, char *argv[])
     pollfds[0].fd = sockfd; 
     pollfds[0].events = POLLIN; 
     // TImeout???
-    fprintf(stdout, "sockfd: %d, pollfds[0]: %d\n", sockfd, pollfds[0].fd); 
-    fflush(stdout); 
+
+
 
 
 
     while (endServer == FALSE) {
-        fprintf(stdout, "before poll\n"); 
+        fprintf(stdout, "Calling poll()... \n"); 
 	fflush(stdout); 
 
 	funcError = poll(pollfds, nfds, timeout);   
