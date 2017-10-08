@@ -12,18 +12,10 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
-/********* PUBLIC VARIABLES **********/
-struct pollfd pollfds[200];
-int nfds;
-GString *gMessage;
-FILE *logFile; 
-
 /************* STRUCTS ***********/
 
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
-
-
 
 // Struct for client request
 typedef struct Request {
@@ -33,8 +25,17 @@ typedef struct Request {
     GString *pathPage;
     GString *query;
     GString *messageBody;
+    int version;
     int keepAlive;
 } Request;
+
+/********* PUBLIC VARIABLES **********/
+struct pollfd pollfds[200];
+int nfds;
+GString *gMessage;
+FILE *logFile;
+Request request;
+GString *response;
 
 /************** Functions ***************/
 
@@ -46,6 +47,8 @@ void initRequest(Request *request) {
     request->messageBody = g_string_new("");
     request->query = g_string_new("");
     request->keepAlive = TRUE;
+    request->version = TRUE;
+    response = g_string_sized_new(1024);
 }
 
 void freeRequest(Request *request) {
@@ -54,17 +57,32 @@ void freeRequest(Request *request) {
     g_string_free(request->pathPage, TRUE);
     g_string_free(request->messageBody, TRUE);  
     g_string_free(request->query, TRUE);
+    g_string_free(gMessage, TRUE);
+    g_string_free(response, TRUE);
 }
 
-void sendBadRequest(Request request) {
-
+void sendBadRequest() {
+    if(request.version) {
+        g_string_append(response, "HTTP/1.1 400 Bad Request\r\n");
+    }
+    else {
+        g_string_append(response, "HTTP/1.0 200 OK\r\n");
+    }
+    //g_string_append_printf(response, "Date: %s\r\n", date);
+    g_string_append(response, "Server: Emre can \r\n");
+    g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
+    g_string_append(response, "Content-Type: text/html\r\n");
+    g_string_append(response, "Connection: Closed\r\n");
 }
 
-void sendOKRequest(Request request) {
-
-    GString *response = g_string_sized_new(1024);
+void sendOKRequest() {
     // Append to the response
-    g_string_append(response, "HTTP/1.1 200 OK\r\n");
+    if(request.version) {
+        g_string_append(response, "HTTP/1.1 200 OK\r\n");
+    }
+    else {
+	g_string_append(response, "HTTP/1.0 200 OK\r\n");
+    }
     //g_string_append_printf(response, "Date: %s\r\n", date);
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
@@ -72,6 +90,7 @@ void sendOKRequest(Request request) {
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
 
+    // Check if the connection is keep-alive
     if(request.keepAlive) {
     	g_string_append(response, "Connection: Keep-Alive\r\n");
     }
@@ -79,11 +98,18 @@ void sendOKRequest(Request request) {
 	g_string_append(response, "Connection: Closed\r\n");
     }
 
+   // Send the message body if its not HEAD request 
+   if (request.method != HEAD) {
+        g_string_append(response, request.messageBody->str); 
+    }
+
+    //send(connection->conn_fd, response->str, response->len, 0);
+
     fprintf(stdout, "\n\n\nResponse is %s\n\n", response->str);
     fflush(stdout);
 }
 
-int ParsingFirstLine(Request request) {
+int ParsingFirstLine() {
     // Get the first line of the message, split it to method
     // path and protocol/version
     gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
@@ -115,9 +141,8 @@ int ParsingFirstLine(Request request) {
 
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
-	fprintf(stdout, "\n\n\n inni i http 1. 0 \n\n");
-    fflush(stdout);
         request.keepAlive = FALSE;
+	request.version = FALSE;
     }
 
     // Check if the HTTP version is supprted
@@ -129,7 +154,7 @@ int ParsingFirstLine(Request request) {
     return requestOk;
 }
 
-int parseHeader(Request request) {
+int parseHeader() {
     int requestOk = TRUE;
 
     // Split the header on lines
@@ -175,7 +200,6 @@ int parseHeader(Request request) {
 }
 
 int createRequest(GString *gMessage) {
-    Request request;
     initRequest(&request);
     int requestOk = TRUE;
     
@@ -183,6 +207,9 @@ int createRequest(GString *gMessage) {
         // send Bad request
 	return FALSE;
     }  
+
+    fprintf(stdout, "\n\n\nKeepAlive is %d\n\n", request.keepAlive);
+    fflush(stdout);
 
     // Get the message body
     gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");    
