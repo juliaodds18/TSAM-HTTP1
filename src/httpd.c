@@ -103,6 +103,29 @@ void logMessage(int responseCode) {
     fclose(logFile); 
 }
 
+gchar * createHTMLPage(GString *body) {
+   fprintf(stdout, "THIS IS A BOOOOOOOOOODY WHOO: %s", body->str); 
+   fflush(stdout);  
+
+   GString *html = g_string_new("<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
+    
+    fprintf(stdout, "helo here we are \n"); 
+    fflush(stdout); 
+
+    if (body->str != NULL) {
+	fprintf(stdout, "we are in if cool\n"); 
+	fflush(stdout); 
+	g_string_append(html, body->str); 
+    }
+    else {
+	fprintf(stdout, "IN ELSE WHOOO \n"); 
+	fflush(stdout); 
+	g_string_append(html, "THIS IS A TEST SITE WOW\n");
+    }
+    g_string_append(html, "\n</body>\n</html>\n");
+
+    return html->str;
+}
 
 void sendBadRequest() {
     if(request.version) {
@@ -142,6 +165,7 @@ void sendOKRequest() {
     g_string_append(response, "Accept-Ranges: bytes\r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
+    g_string_append(response, createHTMLPage(request.messageBody));
 
     // Check if the connection is keep-alive
     if(request.keepAlive) {
