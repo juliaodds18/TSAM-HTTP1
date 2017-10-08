@@ -311,6 +311,7 @@ int main(int argc, char *argv[])
 	exit(-1);    
     } 
 
+    // Signal handler for SIGINT
     if (signal(SIGINT, signalHandler) == SIG_ERR) {
 	fprintf(stdout, "Cannot catch SIGINT\n"); 
 	fflush(stdout); 
@@ -323,8 +324,6 @@ int main(int argc, char *argv[])
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
     gMessage = g_string_new("");
-
-
     sscanf(argv[1], "%d", &port); 
 
     // Create and bind a TCP socket.
@@ -438,7 +437,7 @@ int main(int argc, char *argv[])
 	    }
 	     else {
 
-		
+		timeout = time(NULL);
 		// Existing connection is readable
 		closeConn = FALSE;  
 		do {
@@ -481,7 +480,8 @@ int main(int argc, char *argv[])
 
 		} while (TRUE); 
 
-	    }	    
+	   }
+	    
 	   if (closeConn) {
 		// Clean up connections that were closed
 		close(pollfds[i].fd);
