@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <glib.h>
 #include <glib/gprintf.h>
+#include <time.h>
 
 /************* STRUCTS ***********/
 
@@ -68,7 +69,11 @@ void sendBadRequest() {
     else {
         g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
-    //g_string_append_printf(response, "Date: %s\r\n", date);
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+    g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
@@ -83,7 +88,13 @@ void sendOKRequest() {
     else {
 	g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
-    //g_string_append_printf(response, "Date: %s\r\n", date);
+
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+
+    g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
     g_string_append(response, "Accept-Ranges: bytes\r\n");
