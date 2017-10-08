@@ -215,8 +215,7 @@ int createRequest(GString *gMessage) {
     int requestOk = TRUE;
     
     if(!(requestOk = ParsingFirstLine(request))) {
-        // send Bad request
-	return FALSE;
+	requestOk = FALSE;
     }  
 
     fprintf(stdout, "\n\n\nKeepAlive is %d\n\n", request.keepAlive);
@@ -245,11 +244,15 @@ int createRequest(GString *gMessage) {
     g_strfreev(startOfQuery); 
  
     if(!(requestOk = parseHeader(request))) {
-	// send bad request 
-	return FALSE;
+	requestOk =  FALSE;
     }
-
-    sendOKRequest(request);  
+    if(requestOk) {
+        sendOKRequest(request);  
+    }
+    else {
+	sendBadRequest();
+    }
+   
     return requestOk;
 }
 
