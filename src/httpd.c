@@ -113,11 +113,10 @@ GString* createHTMLPage(gchar *body) {
     else {
 	g_string_append(html, "THIS IS A TEST SITE WOW\r\n");
     }
-    fprintf(stdout, "after if else wow\n"); 
-    fflush(stdout);  
+
+
     g_string_append(html, "</body>\r\n</html>\r\n");
-    fprintf(stdout, "this work?\n"); 
-    fflush(stdout); 
+   
     return html;
 }
 
@@ -162,24 +161,19 @@ void sendOKRequest() {
     
     // Check if the connection is keep-alive
     if(request.keepAlive) {
-    	g_string_append(response, "Connection: Keep-Alive\r\n\r\n");
+    	g_string_append(response, "Connection: Keep-Alive\r\n");
     }
     else {
-	g_string_append(response, "Connection: Closed\r\n\r\n");
+	g_string_append(response, "Connection: Closed\r\n");
     }
-    
+
+     
+
     // Send the message body if its not HEAD request 
-    if (request.method == POST) {
-	g_string_append(response, "alrightyo \r\n");  
-	g_string_append(response, createHTMLPage(request.messageBody->str)->str);
-	g_string_append(response, " well then \r\n"); 
-    } 
-    else {
-	
-	g_string_append(response, createHTMLPage("")->str); 
-        fprintf(stdout, "this work?\n"); 
-	fflush(stdout); 
+    if (request.method != HEAD) { 
+	g_string_append(response, createHTMLPage(request.messageBody->str)->str ); 	
     }
+    g_string_append(response, "\r\n\r\n"); 
 }
 
 int ParsingFirstLine() {
