@@ -15,7 +15,8 @@
 /********* PUBLIC VARIABLES **********/
 struct pollfd pollfds[200];
 int nfds;
-GString *gMessage; 
+GString *gMessage;
+FILE *logFile; 
 
 /************* STRUCTS ***********/
 
@@ -226,7 +227,21 @@ void signalHandler(int signal) {
     }
 }
 
+void logMessage() {
 
+    logFile = fopen("logfile.log", "w"); 
+    if (logFile == NULL) {
+	fprintf(stdout, "Opening logfile failed"); 
+	fflush(stdout); 
+	exit(-1); 
+    }
+    
+    // Create string that contains current time
+    
+    
+    
+    fclose(logFile); 
+}
 
 int main(int argc, char *argv[])
 {  
@@ -249,6 +264,11 @@ int main(int argc, char *argv[])
     int endServer = FALSE, shrinkArray = FALSE, closeConn = FALSE;
     nfds = 1;
     gMessage = g_string_new("");
+
+
+
+    //Create a new log file
+
 
     sscanf(argv[1], "%d", &port); 
 
