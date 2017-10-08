@@ -39,33 +39,37 @@ FILE *logFile;
 Request request;
 GString *response;
 int requestOk;
+int sockfd;
 /************** Functions ***************/
 
 // Initialize the client request
-void initRequest(Request *request) {
-    request->host = g_string_new("");
-    request->path = g_string_new("");
-    request->pathPage = g_string_new("");
-    request->messageBody = g_string_new("");
-    request->query = g_string_new("");
-    request->keepAlive = TRUE;
-    request->version = TRUE;
+void initRequest() {
+    request.host = g_string_new("");
+    request.path = g_string_new("");
+    request.pathPage = g_string_new("");
+    request.messageBody = g_string_new("");
+    request.query = g_string_new("");
+    request.keepAlive = TRUE;
+    request.version = TRUE;
     response = g_string_sized_new(1024);
     requestOk = TRUE;
+    sockfd = -1;
 }
 
-void freeRequest(Request *request) {
-    g_string_free(request->host, TRUE); 
-    g_string_free(request->path, TRUE); 
-    g_string_free(request->pathPage, TRUE);
-    g_string_free(request->messageBody, TRUE);  
-    g_string_free(request->query, TRUE);
+void freeRequest() {
+    g_string_free(request.host, TRUE); 
+    g_string_free(request.path, TRUE); 
+    g_string_free(request.pathPage, TRUE);
+    g_string_free(request.messageBody, TRUE);  
+    g_string_free(request.query, TRUE);
     g_string_free(gMessage, TRUE);
     g_string_free(response, TRUE);
 }
 
 void closeConnection() {
-    
+    shutdown(sockfd, SHUT_RDWR);
+    close(sockfd);
+    freeRequest();
 }
 
 void logMessage(int responseCode) {
@@ -303,7 +307,7 @@ void signalHandler(int signal) {
 	for (int i = 0; i < nfds; i++) {
 	    close(pollfds[i].fd);
 	}
-	g_string_free(gMessage, TRUE); 
+        closeConnection(); 
     }
 }
 
@@ -321,7 +325,7 @@ int main(int argc, char *argv[])
 	fflush(stdout); 
     }
  
-    int port, sockfd = -1, funcError, on = 1, currSize, newfd = -1, i, j;
+    int port, funcError, on = 1, currSize, newfd = -1, i, j;
     struct sockaddr_in server;
     char buffer[1024];
     int timeout = 30*1000;
@@ -532,4 +536,5 @@ int main(int argc, char *argv[])
 	}
        
     }
+    closeConnection();
 }
