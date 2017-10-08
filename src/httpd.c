@@ -16,8 +16,6 @@
 struct pollfd pollfds[200];
 int nfds;
 GString *gMessage; 
-GString *response;
-GString *responseCode;
 
 /************* STRUCTS ***********/
 
@@ -47,7 +45,6 @@ void initRequest(Request *request) {
     request->messageBody = g_string_new("");
     request->query = g_string_new("");
     request->keepAlive = TRUE;
-    response = g_string_sized_new(1024);
 }
 
 void freeRequest(Request *request) {
@@ -56,36 +53,49 @@ void freeRequest(Request *request) {
     g_string_free(request->pathPage, TRUE);
     g_string_free(request->messageBody, TRUE);  
     g_string_free(request->query, TRUE);
-    g_string_free(response, TRUE);
-    g_string_free(responseCode, TRUE);
 }
 
-int createRequest(GString *gMessage) {
-    Request request;
-    initRequest(&request);
-    int requestOk = TRUE;
+void sendBadRequest(Request request) {
+
+}
+
+void sendOKRequest(Request request) {
+
+    GString *response = g_string_sized_new(1024);
+    // Append to the response
+    g_string_append(response, "HTTP/1.1 200 OK\r\n");
+    //g_string_append_printf(response, "Date: %s\r\n", date);
+    g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
+    g_string_append(response, "Server: Emre can server\r\n");
+    g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
+    fprintf(stdout, "\n\n\nResponse is %s\n\n", response->str);
+    fflush(stdout);
+}
+
+int ParsingFirstLine(Request request) {
     // Get the first line of the message, split it to method
     // path and protocol/version
     gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
-    
+    int requestOk = TRUE;
+
     // If the firs line is smaller than 3 close the connection
     if(g_strv_length(firstLine) < 3) {
-	requestOk = FALSE;
+        requestOk = FALSE;
     }
-    
-    // Parsing the method	
+
+    // Parsing the method
     if (!(g_strcmp0(firstLine[0], "GET"))) {
         request.method =  GET;
     }
     else if(!(g_strcmp0(firstLine[0], "POST"))) {
-	request.method = POST;
+        request.method = POST;
     }
     else if(!(g_strcmp0(firstLine[0], "HEAD"))) {
         request.method = HEAD;
     }
     else {
-	// close the connection 
-	requestOk = FALSE;
+        // close the connection
+        requestOk = FALSE;
     }
 
     // paring the path
@@ -93,89 +103,103 @@ int createRequest(GString *gMessage) {
 
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
-        request.keepAlive = FALSE; 
+        request.keepAlive = FALSE;
     }
 
-    // Check if the HTTP version is supprted    
+    // Check if the HTTP version is supprted
     if(!g_str_has_prefix(firstLine[2], "HTTP/1.0") && !g_str_has_prefix(firstLine[2], "HTTP/1.1")) {
-	requestOk = FALSE;
+        requestOk = FALSE;
     }
- 
-    g_strfreev(firstLine); 
+
+    g_strfreev(firstLine);
+    return requestOk;
+}
+
+int parseHeader(Request request) {
+    int requestOk = TRUE;
+
+    // Split the header on lines
+    gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2);
+    gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
+
+    // iterate through the header
+    for(int i = 1; splitHeaderLines[i]; i++) {
+        if (strlen(splitHeaderLines[i]) == 0) {
+            continue;
+        }
+
+        // Split the lines and set to lowercase
+        gchar **splitOnDelim = g_strsplit_set(splitHeaderLines[i], ":", 2);
+        gchar *toLowerDelim = g_ascii_strdown(splitOnDelim[0], -1);
+
+        // Set the host
+        if (!(g_strcmp0(toLowerDelim, "host"))) {
+            g_string_assign(request.host, splitOnDelim[1]);
+        }
+
+        // Check if there is Keep-alive connection
+        if (!(g_strcmp0(toLowerDelim, "connection"))) {
+            if(g_strcmp0(splitOnDelim[1], "keep-alive") || g_strcmp0(splitOnDelim[1], "close")) {
+                request.keepAlive = FALSE;
+            }
+        }
+        g_strfreev(splitOnDelim);
+    }
+
+    // Check if there was a host
+    if (request.host == NULL) {
+        printf("Host not found, close the connection\n");
+	fflush(stdout);
+        requestOk = FALSE;
+    }
+
+    // Free all variables
+    g_strfreev(getHeader);
+    g_strfreev(splitHeaderLines);
+
+    return requestOk;
+}
+
+int createRequest(GString *gMessage) {
+    Request request;
+    initRequest(&request);
+    int requestOk = TRUE;
+    
+    if(!(requestOk = ParsingFirstLine(request))) {
+        // send Bad request
+	return FALSE;
+    }  
 
     // Get the message body
-    gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");
-    
+    gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");    
     gchar payload_buffer[gMessage->len];
- 
-    if(startOfBody == NULL) {
-	// What to do what to do ??? 
-	// return FALSE;
-    }
     
     // Parse the message body
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
     g_string_assign(request.messageBody, payload_buffer);
-    fprintf(stdout, "\n\n\nmessageBody: %s\n", request.messageBody->str);
-    fflush(stdout);
-    //  gchar *startOfQuery = g_strrstr(request.path->str, (gchar*)"?"); 
+
+    // split the path on question mark 
     gchar **startOfQuery = g_strsplit(request.path->str, "?", 2);
 
     // Parse the path without the query    
-    g_string_assign(request.pathPage, startOfQuery[0]);
-    
+    g_string_assign(request.pathPage, startOfQuery[0]); 
+
     // Check if there is query 
     if(startOfQuery[1] != NULL) {
 	// Parse the query
 	g_string_assign(request.query, startOfQuery[1]);
     }
 
-    // Split the header on lines 
-    gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2); 
-    gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
-   
-    // iterate through the header
-    for(int i = 1; splitHeaderLines[i]; i++) {
-        if (strlen(splitHeaderLines[i]) == 0) {
-	    continue;
-	}
-
-	// Split the lines and set to lowercase
-	gchar **splitOnDelim = g_strsplit_set(splitHeaderLines[i], ":", 2);
-        gchar *toLowerDelim = g_ascii_strdown(splitOnDelim[0], -1);        
-	
-	// Set the host 
-	if (!(g_strcmp0(toLowerDelim, "host"))) {
-     	    g_string_assign(request.host, splitOnDelim[1]);
-        }
-
-	// Check if there is Keep-alive connection
-	if (!(g_strcmp0(toLowerDelim, "connection"))) {
-	    if(g_strcmp0(splitOnDelim[1], "keep-alive") || g_strcmp0(splitOnDelim[1], "close")) {
-		request.keepAlive = FALSE;	
-	    }
-	}
-	g_strfreev(splitOnDelim);
-
-    }
-    // Check if there was a host
-    if (request.host == NULL) {
-	printf("Host not found, close the connection\n");
-            requestOk = FALSE;
+    g_strfreev(startOfQuery); 
+ 
+    if(!(requestOk = parseHeader(request))) {
+	// send bad request 
+	return FALSE;
     }
 
-    // Free all variables
-    g_strfreev(getHeader);
-    g_strfreev(splitHeaderLines);
-    g_strfreev(startOfQuery);
-
+    sendOKRequest(request);  
     return requestOk;
 }
-
-void sendRespons() {
-
-}
-
 
 void signalHandler(int signal) {
     if (signal == SIGINT) {
@@ -375,10 +399,12 @@ int main(int argc, char *argv[])
 
 		    // If the method is unknown close the connection
 		    if(!createRequest(gMessage)) {
-	    		// Close the connection.
-	    		// Send bad request response to client  
-			sendRespons();
+	    		// Close the connection
 			closeConn = TRUE; 
+		    }
+		    else {
+			fprintf(stdout, "\n\n\nIM HERE\n\n");
+                        fflush(stdout);
 		    }
 
         	    buffer[size] = '\0';
