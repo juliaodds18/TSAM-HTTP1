@@ -38,7 +38,7 @@ GString *gMessage;
 FILE *logFile;
 Request request;
 GString *response;
-
+int requestOk;
 /************** Functions ***************/
 
 // Initialize the client request
@@ -51,6 +51,7 @@ void initRequest(Request *request) {
     request->keepAlive = TRUE;
     request->version = TRUE;
     response = g_string_sized_new(1024);
+    requestOk = TRUE;
 }
 
 void freeRequest(Request *request) {
@@ -161,13 +162,12 @@ int ParsingFirstLine() {
     // Get the first line of the message, split it to method
     // path and protocol/version
     gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
-    int requestOk = TRUE;
 
     // If the firs line is smaller than 3 close the connection
     if(g_strv_length(firstLine) < 3) {
         requestOk = FALSE;
     }
-
+    
     // Parsing the method
     if (!(g_strcmp0(firstLine[0], "GET"))) {
         request.method =  GET;
@@ -176,16 +176,17 @@ int ParsingFirstLine() {
         request.method = POST;
     }
     else if(!(g_strcmp0(firstLine[0], "HEAD"))) {
-        request.method = HEAD;
+	 request.method = HEAD;
     }
     else {
+        fprintf(stdout, "Method: %s\n", firstLine[0]);
+    fflush(stdout);
         // close the connection
         requestOk = FALSE;
     }
 
     // paring the path
     g_string_assign(request.path, firstLine[1]);
-
 
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
@@ -203,8 +204,6 @@ int ParsingFirstLine() {
 }
 
 int parseHeader() {
-    int requestOk = TRUE;
-
     // Split the header on lines
     gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2);
     gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
@@ -249,7 +248,6 @@ int parseHeader() {
 
 int createRequest(GString *gMessage) {
     initRequest(&request);
-    int requestOk = TRUE;
     
     if(!(requestOk = ParsingFirstLine(request))) {
 	requestOk = FALSE;
