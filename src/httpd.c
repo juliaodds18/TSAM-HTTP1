@@ -17,6 +17,7 @@
 
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
+const char* methodNames[] = {"HEAD", "POST", "GET"};
 
 // Struct for client request
 typedef struct Request {
@@ -61,6 +62,42 @@ void freeRequest(Request *request) {
     g_string_free(gMessage, TRUE);
     g_string_free(response, TRUE);
 }
+
+void logMessage(int responseCode) {
+
+    logFile = fopen("logfile.log", "w"); 
+    if (logFile == NULL) {
+	fprintf(stdout, "Opening logfile failed"); 
+	fflush(stdout); 
+	exit(-1); 
+    }
+    
+    // Create string that contains current time
+    char timeBuffer[256];
+    time_t t = time(NULL); 
+    struct tm *currentTime = localtime(&t); 
+   
+
+
+    strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime); 
+    //fprintf(stdout, "%s\n ", timeBuffer);    
+
+    GString *logString = g_string_new(NULL); 
+    g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer, 
+					request.host->str, 
+					methodNames[request.method],
+					request.pathPage->str,
+					responseCode ); 
+
+    //fprintf(stdout, "%s\n", logString->str); 
+    //fflush(stdout); 
+
+    fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile); 
+
+ 
+    fclose(logFile); 
+}
+
 
 void sendBadRequest() {
     if(request.version) {
@@ -237,9 +274,13 @@ int createRequest(GString *gMessage) {
     if(!(requestOk = parseHeader(request))) {
 	// send bad request 
 	return FALSE;
-    }
+    } 
 
     sendOKRequest(request);  
+
+    //Log the request
+    logMessage(200); 
+
     return requestOk;
 }
 
@@ -253,36 +294,6 @@ void signalHandler(int signal) {
 	}
 	g_string_free(gMessage, TRUE); 
     }
-}
-
-void logMessage() {
-
-    logFile = fopen("logfile.log", "w"); 
-    if (logFile == NULL) {
-	fprintf(stdout, "Opening logfile failed"); 
-	fflush(stdout); 
-	exit(-1); 
-    }
-    
-    // Create string that contains current time
-    char timeBuffer[256];
-    time_t t = time(NULL); 
-    struct tm *currentTime = localtime(&t); 
-
-    strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime); 
-    fprintf(stdout, "%s\n ", timeBuffer);    
-    
-    //GString host = request.host; 
-
-
-
-
-    fflush(stdout); 
-
-
-
- 
-    fclose(logFile); 
 }
 
 int main(int argc, char *argv[])
