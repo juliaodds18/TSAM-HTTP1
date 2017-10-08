@@ -106,7 +106,11 @@ void sendBadRequest() {
     else {
         g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
-    //g_string_append_printf(response, "Date: %s\r\n", date);
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+    g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
@@ -121,7 +125,13 @@ void sendOKRequest() {
     else {
 	g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
-    //g_string_append_printf(response, "Date: %s\r\n", date);
+
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+
+    g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
     g_string_append(response, "Server: Emre can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
     g_string_append(response, "Accept-Ranges: bytes\r\n");
@@ -242,8 +252,7 @@ int createRequest(GString *gMessage) {
     int requestOk = TRUE;
     
     if(!(requestOk = ParsingFirstLine(request))) {
-        // send Bad request
-	return FALSE;
+	requestOk = FALSE;
     }  
 
     fprintf(stdout, "\n\n\nKeepAlive is %d\n\n", request.keepAlive);
@@ -272,15 +281,18 @@ int createRequest(GString *gMessage) {
     g_strfreev(startOfQuery); 
  
     if(!(requestOk = parseHeader(request))) {
-	// send bad request 
-	return FALSE;
-    } 
-
-    sendOKRequest(request);  
-
-    //Log the request
-    logMessage(200); 
-
+	requestOk =  FALSE;
+    }
+ 
+    if(requestOk) {
+        sendOKRequest(request); 
+	logMessage(200);  
+    }
+    else {
+	sendBadRequest();
+	logMessage(400); 
+    }
+   
     return requestOk;
 }
 
