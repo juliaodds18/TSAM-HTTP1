@@ -40,6 +40,7 @@ Request request;
 GString *response;
 int requestOk;
 int sockfd;
+
 /************** Functions ***************/
 
 // Initialize the client request
@@ -69,7 +70,7 @@ void closeConnection() {
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
     exit(1);
-    //freeRequest();
+    freeRequest();
 }
 
 void logMessage(int responseCode) {
