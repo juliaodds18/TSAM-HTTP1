@@ -104,18 +104,16 @@ void logMessage(int responseCode) {
 
 GString* createHTMLPage(gchar *body) {
    
-   GString *html = g_string_new("<!doctype html>\r\n<html>\r\n<head>\r\n<meta charset=\"utf-8\">\r\n<title>Test page.</title>\r\n</head>\r\n<body>\r\n");
-
+   GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
    if (g_strcmp0(body, "") != 0) { 
-	g_string_append_printf(html, "%s\r\n", body); 
+	g_string_append_printf(html, "%s\n", body); 
 
     }
     else {
-	g_string_append(html, "THIS IS A TEST SITE WOW\r\n");
+	g_string_append(html, "<p>THIS IS A TEST SITE WOWi</p>\n");
     }
 
-
-    g_string_append(html, "</body>\r\n</html>\r\n");
+    g_string_append(html, "</body>\n</html>\n");
    
     return html;
 }
@@ -177,6 +175,8 @@ void sendOKRequest() {
     else if (request.method == GET) {
 	g_string_append(response, createHTMLPage("")->str); 
     }
+    fprintf(stdout, "Respone: %s\n" , response->str);
+    fflush(stdout);
     g_string_append(response, "\r\n"); 
 }
 
@@ -189,7 +189,7 @@ int ParsingFirstLine() {
     if(g_strv_length(firstLine) < 3) {
         requestOk = FALSE;
     }
-    
+
     // Parsing the method
     if (!(g_strcmp0(firstLine[0], "GET"))) {
         request.method =  GET;
