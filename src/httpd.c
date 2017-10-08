@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <glib.h>
 #include <glib/gprintf.h>
+#include <time.h>
 
 /********* PUBLIC VARIABLES **********/
 struct pollfd pollfds[200];
@@ -200,9 +201,13 @@ void logMessage() {
     }
     
     // Create string that contains current time
+   
     
-    
-    
+
+
+
+
+ 
     fclose(logFile); 
 }
 
@@ -228,7 +233,7 @@ int main(int argc, char *argv[])
     nfds = 1;
     gMessage = g_string_new("");
 
-
+    logMessage(); 
 
     //Create a new log file
 
