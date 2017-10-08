@@ -64,6 +64,10 @@ void freeRequest(Request *request) {
     g_string_free(response, TRUE);
 }
 
+void closeConnection() {
+    
+}
+
 void logMessage(int responseCode) {
 
     logFile = fopen("logfile.log", "a"); 
@@ -152,7 +156,7 @@ void sendOKRequest() {
         g_string_append(response, request.messageBody->str); 
     }
 
-    //send(connection->conn_fd, response->str, response->len, 0);
+    //send(connection->conn_fd, response->str, response->len, 0);;
 
     fprintf(stdout, "\n\n\nResponse is %s\n\n", response->str);
     fflush(stdout);
@@ -252,9 +256,6 @@ int createRequest(GString *gMessage) {
     if(!(requestOk = ParsingFirstLine(request))) {
 	requestOk = FALSE;
     }  
-
-    fprintf(stdout, "\n\n\nKeepAlive is %d\n\n", request.keepAlive);
-    fflush(stdout);
 
     // Get the message body
     gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");    
@@ -491,12 +492,12 @@ int main(int argc, char *argv[])
 
 		    // If the method is unknown close the connection
 		    if(!createRequest(gMessage)) {
-	    		// Close the connection
+	    		// Close the connectioni
+	    		send(pollfds[i].fd, response->str, response->len, 0);
 			closeConn = TRUE; 
 		    }
 		    else {
-			fprintf(stdout, "\n\n\nIM HERE\n\n");
-                        fflush(stdout);
+			send(pollfds[i].fd, response->str, response->len, 0);
 		    }
 
         	    buffer[size] = '\0';
