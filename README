@@ -1,1 +1,28 @@
-Update this.
+In memory Hyper Text Transfer Protocol Server
+Implemented in C 
+
+About 
+The server receives requests from clients, parses the request header and generates 
+an in-memory HTML page, which is sent back to the client. Every time a client sends
+a request, information about it is stored in logfile.log. 
+
+Usage
+To start the server, type in: ./src/httpd PORT
+To test the GET method, either use a browser or write: curl -v 127.0.0.1:PORT to the command line
+To test the POST method, write: curl -v --data "Some message" 127.0.0.1:PORT
+To test a bad request, write curl -v -X PUT 127.0.0.1:PORT 
+
+Implementation 
+The server is implemented using polling. It first creates a listening socket, which is used
+to listen for any new incoming connections. If there are no new connections, the poll() function 
+waits patiently until something happens. If there are, the listening socket accepts it and 
+adds it to the socket-array, which is used to store the sockets (or file descriptors). 
+If a connection has data to send, the server receives it, then parses its header. It gathers
+all the information it needs to know and logs it. Then the server generates the appropriate 
+HTML page, adds a header and sends the data back to the client. 
+
+The Sad Part 
+The server does not really work. It seems to respond to the browser, along with the appropriate 
+response header and body, but the server does not receive it. Therefore, the HTML page is never
+displayed. We do not know what causes this, even though we spent hours on trying to fix it. 
+
