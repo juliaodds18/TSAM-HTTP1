@@ -106,7 +106,7 @@ GString* createHTMLPage(gchar *body) {
    
    GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
    if (g_strcmp0(body, "") != 0) { 
-	g_string_append_printf(html, "%s\n", body); 
+	g_string_append_printf(html, "%s\r\n", body); 
 
     }
     else {
@@ -135,7 +135,9 @@ void sendBadRequest() {
     g_string_append(response, "Server: Emre Can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
-    g_string_append(response, "Connection: Closed\r\n\r\n");
+    g_string_append(response, "Connection: Closed\r\n");
+    GString * html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>400</title>\n</head>\n<body>\n<h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p>\n</body>\n</html>\n");
+    g_string_append_printf(response, "%s\r\n", html->str);
 }
 
 void sendOKRequest() {
@@ -165,16 +167,16 @@ void sendOKRequest() {
     }
     else {
 	g_string_append(response, "Connection: Closed\r\n");
-    }
-     
+    } 
 
     // Send the message body if its not HEAD request 
     if (request.method == POST) { 
 	g_string_append(response, createHTMLPage(request.messageBody->str)->str ); 	
     }
-    else if (request.method == GET) {
-	g_string_append(response, createHTMLPage("")->str); 
+    if (request.method == GET) {
+        g_string_append(response, createHTMLPage("")->str); 
     }
+ 
     fprintf(stdout, "Respone: %s\n" , response->str);
     fflush(stdout);
     g_string_append(response, "\r\n"); 
