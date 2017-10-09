@@ -25,4 +25,4 @@ The Sad Part
 The server does not really work. It seems to respond to the browser, along with the appropriate 
 response header and body, but the server does not receive it. Therefore, the HTML page is never
 displayed. We do not know what causes this, even though we spent hours on trying to fix it. 
-
+We did not implement keep-alive, as we simply ran out of time.
