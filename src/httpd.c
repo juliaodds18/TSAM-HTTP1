@@ -57,6 +57,7 @@ void initRequest() {
     sockfd = -1;
 }
 
+// free the client requests
 void freeRequest() {
     g_string_free(request.host, TRUE); 
     g_string_free(request.path, TRUE); 
@@ -66,6 +67,7 @@ void freeRequest() {
     g_string_free(response, TRUE);
 }
 
+// Close the connection
 void closeConnection() {
     shutdown(sockfd, SHUT_RDWR);
     close(sockfd);
@@ -73,8 +75,9 @@ void closeConnection() {
     exit(1);
 }
 
+// Log the message 
 void logMessage(int responseCode) {
-
+    // Create log file 
     logFile = fopen("logfile.log", "a"); 
     if (logFile == NULL) {
 	fprintf(stdout, "Opening logfile failed"); 
@@ -88,6 +91,7 @@ void logMessage(int responseCode) {
     struct tm *currentTime = localtime(&t); 
     strftime(timeBuffer, 256, "%Y-%m-%dT%H:%M:%SZ", currentTime);  
 
+    // Make the string to send into the log file
     GString *logString = g_string_new(NULL); 
     g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer, 
 					request.host->str, 
@@ -95,18 +99,21 @@ void logMessage(int responseCode) {
 					request.pathPage->str,
 					responseCode ); 
 
+    // Insert into the log file 
     fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile); 
  
     fclose(logFile); 
 }
 
-
-
+// Create the HTML page 
 GString* createHTMLPage(gchar *body) {
-   
+   // Create the first part og the HTML string 
    GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
+
+   // Check if it is POST or GET, insert the message body if it is POST
+   // Else insert the path 
    if (g_strcmp0(body, "") != 0) { 
-	g_string_append_printf(html, "%s\r\n", body); 
+	g_string_append_printf(html, "%s\r", body); 
 
     }
     else {
@@ -116,34 +123,39 @@ GString* createHTMLPage(gchar *body) {
         g_string_append_printf(html, "%s", request.host->str);
    }
 
-    g_string_append(html, "</body>\n</html>\r\n");
-   
-    return html;
+   // Create the last part of the HTML
+   g_string_append(html, "\n</body>\n</html>\r\n");
+   return html;
 }
 
-
-
+// Send bad request with HTML
 void sendBadRequest() {
+    // Make the header with right version
     if(request.version) {
         g_string_append(response, "HTTP/1.1 400 Bad Request\r\n");
     }
     else {
         g_string_append(response, "HTTP/1.0 400 Bad Request\r\n");
     }
+    // create the date 
     time_t t = time(NULL);
     struct tm *currentTime = gmtime(&t);
     char timeBuffer[256];
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
     g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
+
+    // Insert other information to the head
     g_string_append(response, "Server: Emre Can \r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
     g_string_append(response, "Connection: Closed\r\n");
-    g_string_append(response, " \r\n ");
-    GString * html = g_string_new("\r\n<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>400</title>\n</head>\n<body>\n<h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p>\n</body>\n</html>\n");
+    g_string_append(response, " \r\n");
+    // create the HTML for bad request 
+    GString * html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>400</title>\n</head>\n<body>\n<h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p>\n</body>\n</html>\n");
     g_string_append_printf(response, "%s\r\n", html->str);
 }
 
+// Send OK requesst 
 void sendOKRequest() {
     // Append to the response
     if(request.version) {
@@ -153,11 +165,13 @@ void sendOKRequest() {
 	g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
 
+    // create the date 
     time_t t = time(NULL);
     struct tm *currentTime = gmtime(&t);
     char timeBuffer[256];
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
 
+    // INsert other information to the head 
     g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
     g_string_append(response, "Server: Emre Can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
@@ -183,11 +197,13 @@ void sendOKRequest() {
         g_string_append(response, createHTMLPage("")->str); 
     }
  
+    // Print the message out 
     fprintf(stdout, "Respone: %s\n" , response->str);
     fflush(stdout);
     g_string_append(response, "\r\n"); 
 }
 
+// Parsing the first line of the request 
 int ParsingFirstLine() {
     // Get the first line of the message, split it to method
     // path and protocol/version
@@ -226,11 +242,14 @@ int ParsingFirstLine() {
     if(!g_str_has_prefix(firstLine[2], "HTTP/1.0") && !g_str_has_prefix(firstLine[2], "HTTP/1.1")) {
         requestOk = FALSE;
     }
-
+    
+    // Free firstLine 
     g_strfreev(firstLine);
+
     return requestOk;
 }
 
+// Parse the all the header except the first line
 int parseHeader() {
     // Split the header on lines
     gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2);
@@ -274,6 +293,7 @@ int parseHeader() {
     return requestOk;
 }
 
+// Create the request for the client 
 int createRequest(GString *gMessage) {
     initRequest(&request);
     
@@ -322,14 +342,18 @@ int createRequest(GString *gMessage) {
     return requestOk;
 }
 
+// Signaæ handler fo ctrl^c
 void signalHandler(int signal) {
+    // Check if it's SIGINT signal
     if (signal == SIGINT) {
 	fprintf(stdout, "Caught SIGINT, shutting down all connections\n"); 
 	fflush(stdout); 
-
+	
+	// Loop through sockets and close them 
 	for (int i = 0; i < nfds; i++) {
 	    close(pollfds[i].fd);
 	}
+	// Close the connection 
         closeConnection(); 
     }
 }
@@ -351,6 +375,7 @@ int main(int argc, char *argv[])
 	fflush(stdout); 
     }
  
+    // Variables 
     int port, funcError, on = 1, currSize, newfd = -1, i, j;
     struct sockaddr_in server;
     char buffer[1024];
@@ -414,13 +439,11 @@ int main(int argc, char *argv[])
     pollfds[0].events = POLLIN; 
     // TImeout???
 
-
-
-
-
+    // Loop whilt endServer is FALSE
     while (endServer == FALSE) { 
 	funcError = poll(pollfds, nfds, timeout);   
 	
+	// Check if poll failes 
 	if (funcError < 0) {
 	    fprintf(stdout, "poll() failed\n"); 
 	    fflush(stdout);
@@ -433,6 +456,7 @@ int main(int argc, char *argv[])
 	}
 
 	currSize = nfds; 
+	// Loop through all file descriptors
 	for (i = 0; i < currSize; i++) {
 	     
 	    
@@ -451,6 +475,7 @@ int main(int argc, char *argv[])
 	    if (pollfds[i].fd == sockfd) {
 		// Listening descriptor is readable
 	
+		// Accept new incoming connection if exists
 		do {
 		    newfd = accept(sockfd, NULL, NULL);  
 		    if (newfd < 0) {
@@ -474,10 +499,12 @@ int main(int argc, char *argv[])
 		timeout = time(NULL);
 		// Existing connection is readable
 		closeConn = FALSE;  
-		do {
-		    
-		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer) - 1, 0); 
 
+		// Receve data from connection 
+		do {
+		    memset(buffer, 0, 1024);		    
+		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer) - 1, 0); 
+		    
 		    if (funcError < 0) {
 			if (errno != EWOULDBLOCK) {
 
@@ -487,7 +514,10 @@ int main(int argc, char *argv[])
 			}
 			break; 
 		    }
-
+			
+		    buffer[funcError] = '\0';
+			
+		    // Check if buffer is empty
 		    if (funcError == 0) {
 			fprintf(stdout, "Connection closed by client\n"); 
 			fflush(stdout);
@@ -501,16 +531,16 @@ int main(int argc, char *argv[])
 
 		    // If the method is unknown close the connection
 		    if(!createRequest(gMessage)) {
-   	    		// Close the connectioni
+			// Send bad response and 
+   	    		// Close the connection after sending respons
    	    		send(pollfds[i].fd, response->str, response->len, 0);
    			closeConn = TRUE; 
 			closeConnection();
 		    }
 		    else {
+			// Send OK respons 
 			send(pollfds[i].fd, response->str, response->len, 0);
 		    }
-
-        	    buffer[size] = '\0';
 
 		} while (TRUE); 
 	        
@@ -523,6 +553,7 @@ int main(int argc, char *argv[])
 	    }    
 	} 
 
+	// After connection is closed shrink array to  acceprt more connections
 	if (shrinkArray) {
 
 	    for (i = 0; i < nfds; i++) {
