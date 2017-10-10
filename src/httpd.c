@@ -145,7 +145,7 @@ void sendBadRequest() {
     g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
 
     // Insert other information to the head
-    g_string_append(response, "Server: Emre Can \r\n");
+    g_string_append(response, "Server: Emre Can\r\n");
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
     g_string_append(response, "Connection: Closed\r\n");
@@ -164,6 +164,15 @@ void sendOKRequest() {
     else {
 	g_string_append(response, "HTTP/1.0 200 OK\r\n");
     }
+    
+    GString *html = g_string_new("");;
+
+    if (request.method == POST) {
+        html =  createHTMLPage(request.messageBody->str);
+    }
+    if (request.method == GET) {
+        html = createHTMLPage("");
+    }
 
     // create the date 
     time_t t = time(NULL);
@@ -176,8 +185,9 @@ void sendOKRequest() {
     g_string_append(response, "Server: Emre Can \r\n");
     g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
     g_string_append(response, "Accept-Ranges: bytes\r\n");
-    g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
-    g_string_append(response, "Content-Type: text/html\r\n");
+    g_string_append_printf(response, "Content-Length: %lu\r\n", html->len);
+    g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
+
     
     // Check if the connection is keep-alive
     if(request.keepAlive) {
@@ -187,16 +197,14 @@ void sendOKRequest() {
 	g_string_append(response, "Connection: Closed\r\n");
     } 
 
-    g_string_append(response, " \r\n");
+    g_string_append(response, "\r\n");
 
-    // Send the message body if its not HEAD request 
-    if (request.method == POST) { 
-	g_string_append(response, createHTMLPage(request.messageBody->str)->str ); 	
-    }
-    if (request.method == GET) {
-        g_string_append(response, createHTMLPage("")->str); 
-    }
+    // Send the message body if its not HEAD request
+    g_string_append(response, html->str ); 	
  
+
+fprintf(stdout, "Respone: afænæaslnsældGNlsæ\n");
+    fflush(stdout);
     // Print the message out 
     fprintf(stdout, "Respone: %s\n" , response->str);
     fflush(stdout);
@@ -538,8 +546,12 @@ int main(int argc, char *argv[])
 			closeConnection();
 		    }
 		    else {
+			fprintf(stdout, "FYRIR SEND\n");
+			fflush(stdout);
 			// Send OK respons 
 			send(pollfds[i].fd, response->str, response->len, 0);
+			fprintf(stdout, "after SEND\n");
+			fflush(stdout);
 		    }
 
 		} while (TRUE); 
