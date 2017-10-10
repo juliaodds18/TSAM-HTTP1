@@ -149,7 +149,7 @@ void sendBadRequest() {
     g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
     g_string_append(response, "Content-Type: text/html\r\n");
     g_string_append(response, "Connection: Closed\r\n");
-    g_string_append(response, " \r\n");
+    g_string_append(response, "\r\n");
     // create the HTML for bad request 
     GString * html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>400</title>\n</head>\n<body>\n<h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p>\n</body>\n</html>\n");
     g_string_append_printf(response, "%s\r\n", html->str);
