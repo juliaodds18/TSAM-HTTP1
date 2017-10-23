@@ -80,9 +80,9 @@ void logMessage(int responseCode) {
     // Create log file 
     logFile = fopen("logfile.log", "a"); 
     if (logFile == NULL) {
-	fprintf(stdout, "Opening logfile failed"); 
-	fflush(stdout); 
-	exit(-1); 
+        fprintf(stdout, "Opening logfile failed"); 
+        fflush(stdout); 
+        exit(-1); 
     }
     
     // Create string that contains current time
@@ -94,10 +94,10 @@ void logMessage(int responseCode) {
     // Make the string to send into the log file
     GString *logString = g_string_new(NULL); 
     g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer, 
-					request.host->str, 
-					methodNames[request.method],
-					request.pathPage->str,
-					responseCode ); 
+                                        request.host->str, 
+                                        methodNames[request.method],
+                                        request.pathPage->str,
+                                        responseCode ); 
 
     // Insert into the log file 
     fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile); 
@@ -107,13 +107,13 @@ void logMessage(int responseCode) {
 
 // Create the HTML page 
 GString* createHTMLPage(gchar *body) {
-   // Create the first part og the HTML string 
-   GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
+    // Create the first part og the HTML string 
+    GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
 
-   // Check if it is POST or GET, insert the message body if it is POST
-   // Else insert the path 
-   if (g_strcmp0(body, "") != 0) { 
-	g_string_append_printf(html, "%s\r", body); 
+    // Check if it is POST or GET, insert the message body if it is POST
+    // Else insert the path 
+    if (g_strcmp0(body, "") != 0) { 
+        g_string_append_printf(html, "%s\r", body); 
 
     }
     else {
@@ -121,11 +121,11 @@ GString* createHTMLPage(gchar *body) {
         g_string_append_printf(html, "%s", request.pathPage->str);
         g_string_append(html,  " ");
         g_string_append_printf(html, "%s", request.host->str);
-   }
+    }
 
-   // Create the last part of the HTML
-   g_string_append(html, "\n</body>\n</html>\r\n");
-   return html;
+    // Create the last part of the HTML
+    g_string_append(html, "\n</body>\n</html>\r\n");
+    return html;
 }
 
 // Send bad request with HTML
@@ -194,7 +194,7 @@ void sendOKRequest() {
     	g_string_append(response, "Connection: Keep-Alive\r\n");
     }
     else {
-	g_string_append(response, "Connection: Closed\r\n");
+        g_string_append(response, "Connection: Closed\r\n");
     } 
 
     g_string_append(response, "\r\n");
@@ -202,9 +202,6 @@ void sendOKRequest() {
     // Send the message body if its not HEAD request
     g_string_append(response, html->str ); 	
  
-
-fprintf(stdout, "Respone: afænæaslnsældGNlsæ\n");
-    fflush(stdout);
     // Print the message out 
     fprintf(stdout, "Respone: %s\n" , response->str);
     fflush(stdout);
@@ -230,7 +227,7 @@ int ParsingFirstLine() {
         request.method = POST;
     }
     else if(!(g_strcmp0(firstLine[0], "HEAD"))) {
-	 request.method = HEAD;
+         request.method = HEAD;
     }
     else {
         // close the connection
@@ -243,7 +240,7 @@ int ParsingFirstLine() {
     // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
         request.keepAlive = FALSE;
-	request.version = FALSE;
+        request.version = FALSE;
     }
 
     // Check if the HTTP version is supprted
@@ -290,7 +287,7 @@ int parseHeader() {
     // Check if there was a host
     if (request.host == NULL) {
         printf("Host not found, close the connection\n");
-	fflush(stdout);
+        fflush(stdout);
         requestOk = FALSE;
     }
 
@@ -306,7 +303,7 @@ int createRequest(GString *gMessage) {
     initRequest(&request);
     
     if(!(requestOk = ParsingFirstLine(request))) {
-	requestOk = FALSE;
+        requestOk = FALSE;
     }  
 
     // Get the message body
@@ -326,25 +323,25 @@ int createRequest(GString *gMessage) {
     // Check if there is query 
     if(startOfQuery[1] != NULL) {
 	// Parse the query
-	g_string_assign(request.query, startOfQuery[1]);
+        g_string_assign(request.query, startOfQuery[1]);
     }
 
     g_strfreev(startOfQuery); 
  
     // Check if the parseHeader returns true or false
     if(!(requestOk = parseHeader(request))) {
-	requestOk =  FALSE;
+        requestOk =  FALSE;
     }
   
     // Check is requestOk is true or false, send the right
     // response to the client and write it to the logfile 
     if(requestOk) {
         sendOKRequest(request); 
-	logMessage(200);  
+        logMessage(200);  
     }
     else {
-	sendBadRequest();
-	logMessage(400); 
+        sendBadRequest();
+        logMessage(400); 
     }
    
     return requestOk;
@@ -354,13 +351,13 @@ int createRequest(GString *gMessage) {
 void signalHandler(int signal) {
     // Check if it's SIGINT signal
     if (signal == SIGINT) {
-	fprintf(stdout, "Caught SIGINT, shutting down all connections\n"); 
-	fflush(stdout); 
+        fprintf(stdout, "Caught SIGINT, shutting down all connections\n"); 
+        fflush(stdout); 
 	
-	// Loop through sockets and close them 
-	for (int i = 0; i < nfds; i++) {
-	    close(pollfds[i].fd);
-	}
+        // Loop through sockets and close them 
+        for (int i = 0; i < nfds; i++) {
+            close(pollfds[i].fd);
+        }
 	// Close the connection 
         closeConnection(); 
     }
@@ -372,15 +369,15 @@ int main(int argc, char *argv[])
     fflush(stdout);
     // Port number is missing, nothing to be done     
     if (argc != 2) {
-	fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
-	fflush(stdout);
-	exit(-1);    
+        fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
+        fflush(stdout);
+        exit(-1);    
     } 
 
     // Signal handler for SIGINT
     if (signal(SIGINT, signalHandler) == SIG_ERR) {
-	fprintf(stdout, "Cannot catch SIGINT\n"); 
-	fflush(stdout); 
+        fprintf(stdout, "Cannot catch SIGINT\n"); 
+        fflush(stdout); 
     }
  
     // Variables 
@@ -397,9 +394,9 @@ int main(int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     // Print error if socket failed
     if (sockfd < 0) {
-	fprintf(stdout, "Socket() failed\n");
-	fflush(stdout); 
-	exit(-1); 
+        fprintf(stdout, "Socket() failed\n");
+        fflush(stdout); 
+        exit(-1); 
     }
 
     // Allow socket descriptor to be used more than once 
@@ -412,9 +409,9 @@ int main(int argc, char *argv[])
     funcError = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
     // Handle error if setsockopt fails
     if (funcError < 0) {
-	fprintf(stdout, "setsockopt() failed\n"); 
-	fflush(stdout); 
-	exit(-1); 
+        fprintf(stdout, "setsockopt() failed\n"); 
+        fflush(stdout); 
+        exit(-1); 
     } 
 
     // Network functions need arguments in network byte order instead of
@@ -427,18 +424,18 @@ int main(int argc, char *argv[])
 
     // Handle error if bind() fails
     if (funcError < 0) {
-	fprintf(stdout, "bind() failed\n"); 
-	fflush(stdout); 
-	exit(-1); 
+        fprintf(stdout, "bind() failed\n"); 
+        fflush(stdout); 
+        exit(-1); 
     }
     // Before the server can accept messages, it has to listen to the
     // welcome port. A backlog of one connection is allowed.
     funcError = listen(sockfd, 1);
     // Handle error if listen() fails
     if (funcError < 0) {
-	fprintf(stdout, "listen() failed\n"); 
-	fflush(stdout); 
-	exit(-1); 
+        fprintf(stdout, "listen() failed\n"); 
+        fflush(stdout); 
+        exit(-1); 
     }
 
     // Initialize the pollfd structure 
@@ -449,135 +446,129 @@ int main(int argc, char *argv[])
 
     // Loop whilt endServer is FALSE
     while (endServer == FALSE) { 
-	funcError = poll(pollfds, nfds, timeout);   
+        funcError = poll(pollfds, nfds, timeout);   
 	
 	// Check if poll failes 
-	if (funcError < 0) {
-	    fprintf(stdout, "poll() failed\n"); 
-	    fflush(stdout);
-	    break;
+        if (funcError < 0) {
+            fprintf(stdout, "poll() failed\n"); 
+            fflush(stdout);
+            break;
 	}
-	if (funcError == 0) {
-	    fprintf(stdout, "poll() timed out, exiting\n"); 
-	    fflush(stdout); 
-	    break; 
-	}
+        if (funcError == 0) {
+            fprintf(stdout, "poll() timed out, exiting\n"); 
+            fflush(stdout); 
+            break; 
+        }
 
-	currSize = nfds; 
-	// Loop through all file descriptors
-	for (i = 0; i < currSize; i++) {
+        currSize = nfds; 
+        // Loop through all file descriptors
+        for (i = 0; i < currSize; i++) {
 	     
 	    
-	    // Loop through file descriptors, determine whether it is
-	    // the listening connection or an active connection 
-	    if (pollfds[i].revents == 0) {
-		continue; 
-	    }
+            // Loop through file descriptors, determine whether it is
+            // the listening connection or an active connection 
+            if (pollfds[i].revents == 0) {
+        	continue; 
+            }
 
-	    // revents needs to be POLLIN if not 0. Else, there is an error, end the server
-	    if (pollfds[i].revents != POLLIN) {
-		endServer = TRUE;  
-		break; 
+            // revents needs to be POLLIN if not 0. Else, there is an error, end the server
+            if (pollfds[i].revents != POLLIN) {
+                endServer = TRUE;  
+                break; 
 	    } 
  
-	    if (pollfds[i].fd == sockfd) {
-		// Listening descriptor is readable
+            if (pollfds[i].fd == sockfd) {
+                // Listening descriptor is readable
 	
-		// Accept new incoming connection if exists
-		do {
-		    newfd = accept(sockfd, NULL, NULL);  
-		    if (newfd < 0) {
-			if (errno != EWOULDBLOCK) { 
-			    fprintf(stdout, "accept() failed\n"); 
-			    fflush(stdout); 
-			    endServer = TRUE;
-			}
-			break;
-		    }
+                // Accept new incoming connection if exists
+                do {
+                    newfd = accept(sockfd, NULL, NULL);  
+                    if (newfd < 0) {
+                        if (errno != EWOULDBLOCK) { 
+                            fprintf(stdout, "accept() failed\n"); 
+                            fflush(stdout); 
+                            endServer = TRUE;
+                        }
+                        break;
+                    }
 
-		    // Add new connection to pollfd
-		    pollfds[nfds].fd = newfd; 
-		    pollfds[nfds].events = POLLIN; 
-		    nfds++;
+                    // Add new connection to pollfd
+                    pollfds[nfds].fd = newfd; 
+                    pollfds[nfds].events = POLLIN; 
+                    nfds++;
 
-		} while (newfd != -1);	
-	    }
-	     else {
+                } while (newfd != -1);	
+            }
+            else {
 
-		timeout = time(NULL);
-		// Existing connection is readable
-		closeConn = FALSE;  
+                timeout = time(NULL);
+                // Existing connection is readable
+                closeConn = FALSE;  
 
-		// Receve data from connection 
-		do {
-		    memset(buffer, 0, 1024);		    
-		    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer) - 1, 0); 
+                // Receve data from connection 
+                do {
+                    memset(buffer, 0, 1024);		    
+                    funcError = recv(pollfds[i].fd, buffer, sizeof(buffer) - 1, 0); 
 		    
-		    if (funcError < 0) {
-			if (errno != EWOULDBLOCK) {
+                    if (funcError < 0) {
+                        if (errno != EWOULDBLOCK) {
 
-			    fprintf(stdout, "recv() failed\n"); 
-			    fflush(stdout); 
-			    closeConn = TRUE; 
-			}
-			break; 
-		    }
+                            fprintf(stdout, "recv() failed\n"); 
+                            fflush(stdout); 
+                            closeConn = TRUE; 
+                        }
+                        break; 
+                    }
+             	
+                    buffer[funcError] = '\0';
 			
-		    buffer[funcError] = '\0';
-			
-		    // Check if buffer is empty
-		    if (funcError == 0) {
-			fprintf(stdout, "Connection closed by client\n"); 
-			fflush(stdout);
-			closeConn = TRUE; 
-			break; 
-		    }
+                    // Check if buffer is empty
+                    if (funcError == 0) {
+                        fprintf(stdout, "Connection closed by client\n"); 
+                        fflush(stdout);
+                        closeConn = TRUE; 
+                        break; 
+                    }
 
-		    // Parse the message into Gstring
-		    int size = funcError; 
+                    // Parse the message into Gstring
+                    int size = funcError; 
 	            g_string_append_len(gMessage, buffer, size);	
 
-		    // If the method is unknown close the connection
-		    if(!createRequest(gMessage)) {
-			// Send bad response and 
-   	    		// Close the connection after sending respons
-   	    		send(pollfds[i].fd, response->str, response->len, 0);
-   			closeConn = TRUE; 
-			closeConnection();
-		    }
-		    else {
-			fprintf(stdout, "FYRIR SEND\n");
-			fflush(stdout);
+                    // If the method is unknown close the connection
+                    if(!createRequest(gMessage)) {
+                        // Send bad response and 
+                        // Close the connection after sending respons
+                        send(pollfds[i].fd, response->str, response->len, 0);
+                        closeConn = TRUE; 
+                        closeConnection();
+                    }
+                    else {
 			// Send OK respons 
-			send(pollfds[i].fd, response->str, response->len, 0);
-			fprintf(stdout, "after SEND\n");
-			fflush(stdout);
-		    }
+                        send(pollfds[i].fd, response->str, response->len, 0);
+                    }
 
-		} while (TRUE); 
+                } while (TRUE); 
 	        
-		if (closeConn) {
-		    // Clean up connections that were closed
-		    close(pollfds[i].fd);
-		    pollfds[i].fd = -1; 
-		    shrinkArray = TRUE; 
-		}
-	    }    
-	} 
+                if (closeConn) {
+                    // Clean up connections that were closed
+                    close(pollfds[i].fd);
+                    pollfds[i].fd = -1; 
+                    shrinkArray = TRUE; 
+                }
+            }    
+        } 
 
-	// After connection is closed shrink array to  acceprt more connections
-	if (shrinkArray) {
-
-	    for (i = 0; i < nfds; i++) {
-		if (pollfds[i].fd == -1) {
-		    for (j = i; i < nfds; j++) 
-			pollfds[j].fd = pollfds[j+1].fd; 
-		    nfds--;
-		}
-	    }
-
-	    shrinkArray = FALSE;
-	}
+        // After connection is closed shrink array to  acceprt more connections
+        if (shrinkArray) {
+            for (i = 0; i < nfds; i++) {
+                if (pollfds[i].fd == -1) {
+                    for (j = i; i < nfds; j++) 
+                        pollfds[j].fd = pollfds[j+1].fd; 
+                        nfds--;
+                 }
+            }
+            shrinkArray = FALSE;
+        }
     }
     closeConnection();
 }
