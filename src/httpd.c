@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
     int port, sockfd, funcError, currSize, i, j, newfd = -1, on = 1, nfds = 1;
     struct sockaddr_in server;
     char message[1024];
-    int pollTimeout = 30*1000;
+    int pollTimeout = 1000;
     struct pollfd pollfds[200]; 
     gMessage = g_string_new("");
     sscanf(argv[1], "%d", &port);
@@ -452,16 +452,12 @@ int main(int argc, char *argv[])
             fprintf(stdout, "poll() failed\n");
             fflush(stdout);
             break;
-        }
-        if (funcError == 0) {
-            fprintf(stdout, "poll() timed out, exiting\n");
-            fflush(stdout);
-        }
+        } 
        
         currSize = nfds;
 
         for (i = 0; i < currSize; i++) {
-            if (pollfds[i].revents & POLLIN) {
+            if ((pollfds[i].revents & POLLIN)) {
                 if (pollfds[i].fd == sockfd) { 
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
@@ -495,7 +491,7 @@ int main(int argc, char *argv[])
                         g_string_append_len(gMessage, message, sizeMessage);                    
               
                         // If the method is unknown close the connection
-                        if(!createRequest(gMessage, nfds-1)) {
+                        if(!createRequest(gMessage, i)) {
                             // Send bad response and
                             // Close the connection after sending respons
                             send(newfd, response->str, response->len, 0);
@@ -506,18 +502,21 @@ int main(int argc, char *argv[])
                             send(newfd, response->str, response->len, 0);
                         }
     
-                        if (!requestArray[nfds-1].keepAlive) {
+                        if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
-                        }
-                        else {
-                            gdouble timeLeft = g_timer_elapsed(requestArray[nfds-1].timer, NULL);
+                        } 
+                    }
+                }
+          }
+        //if (i == 0) {continue; } 
+        if(requestArray[i].keepAlive) {
+        gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                             if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
                                 closeConn = TRUE;
+                                requestArray[i].keepAlive = FALSE;
                             }
-                        }
-                    }
-
-                    if (closeConn) {
+        }
+        if (closeConn) {
                         // Clean up connections that were closed
                         gMessage = g_string_new("");
                         shutdown(pollfds[i].fd, SHUT_RDWR);
@@ -525,13 +524,10 @@ int main(int argc, char *argv[])
                         pollfds[i].fd = -1;
                         shrinkArray = TRUE;
                         closeConn = FALSE;
-                        //freeRequest(nfds);
                         fprintf(stdout, "Connection closed\n");
                         fflush(stdout);
                     } 
-                }
-            }
-        }
+}
         // After connection is closed shrink array to  acceprt more connections
         if (shrinkArray) {
             int temp = nfds;
