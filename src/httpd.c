@@ -38,47 +38,47 @@ typedef struct Request {
 
 /********* PUBLIC VARIABLES **********/
 GString *gMessage;
-Request request;
 GString *response;
 int requestOk;
 FILE *logFile;
+struct Request requestArray[200];
 
 /************** Functions ***************/
 
 // Initialize the client request
-void initRequest() {
-    request.host = g_string_new("");
-    request.path = g_string_new("");
-    request.pathPage = g_string_new("");
-    request.messageBody = g_string_new("");
-    request.query = g_string_new("");
-    request.keepAlive = TRUE;
-    request.version = TRUE;
+void initRequest(int nfds) {
+    requestArray[nfds].host = g_string_new("");
+    requestArray[nfds].path = g_string_new("");
+    requestArray[nfds].pathPage = g_string_new("");
+    requestArray[nfds].messageBody = g_string_new("");
+    requestArray[nfds].query = g_string_new("");
+    requestArray[nfds].keepAlive = TRUE;
+    requestArray[nfds].version = TRUE;
     response = g_string_sized_new(1024);
     requestOk = TRUE;
-    request.timer = g_timer_new();
+    requestArray[nfds].timer = g_timer_new();
     //sockfd = -1;
 }
 
 // free the client requests
-void freeRequest() {
-    g_string_free(request.host, TRUE);
-    g_string_free(request.path, TRUE);
-    g_string_free(request.pathPage, TRUE);
-    g_string_free(request.messageBody, TRUE);
-    g_string_free(request.query, TRUE);
+void freeRequest(int nfds) {
+    g_string_free(requestArray[nfds].host, TRUE);
+    g_string_free(requestArray[nfds].path, TRUE);
+    g_string_free(requestArray[nfds].pathPage, TRUE);
+    g_string_free(requestArray[nfds].messageBody, TRUE);
+    g_string_free(requestArray[nfds].query, TRUE);
     g_string_free(response, TRUE);
-    g_timer_destroy(request.timer);
+    g_timer_destroy(requestArray[nfds].timer);
 }
 
 // Close the connection
 void closeConnection() {
-    freeRequest();
+    //freeRequest();
     exit(1);
 }
 
 // Log the message
-void logMessage(int responseCode) {
+void logMessage(int responseCode, int nfds) {
     // Create log file
     logFile = fopen("logfile.log", "a");
     if (logFile == NULL) {
@@ -96,9 +96,9 @@ void logMessage(int responseCode) {
     // Make the string to send into the log file
     GString *logString = g_string_new(NULL);
     g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer,
-                                        request.host->str,
-                                        methodNames[request.method],
-                                        request.pathPage->str,
+                                        requestArray[nfds].host->str,
+                                        methodNames[requestArray[nfds].method],
+                                        requestArray[nfds].pathPage->str,
                                         responseCode );
 
     // Insert into the log file
@@ -108,22 +108,22 @@ void logMessage(int responseCode) {
 }
 
 // Create the HTML page
-GString* createHTMLPage(gchar *body) {
+GString* createHTMLPage(gchar *body, int nfds) {
     // Create the first part og the HTML string
     GString *html = g_string_new("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
 
     // Make the path to render in the webpage
     g_string_append(html,  "http://");
     //g_string_append(html,  " ");
-    g_string_append_printf(html, "%s", request.host->str);
+    g_string_append_printf(html, "%s", requestArray[nfds].host->str);
     // If it is POST render the message 
     
-    g_string_append_printf(html, "%s", request.pathPage->str);
+    g_string_append_printf(html, "%s", requestArray[nfds].pathPage->str);
 
     g_string_append(html,  " ");
-    g_string_append_printf(html, "%s", inet_ntoa(request.client.sin_addr));
+    g_string_append_printf(html, "%s", inet_ntoa(requestArray[nfds].client.sin_addr));
     g_string_append(html,  ":");
-    g_string_append_printf(html, "%d", ntohs(request.client.sin_port));
+    g_string_append_printf(html, "%d", ntohs(requestArray[nfds].client.sin_port));
 
     // If it is POST, render t
     if(g_strcmp0(body, "") != 0) {
@@ -136,9 +136,9 @@ GString* createHTMLPage(gchar *body) {
 }
 
 // Send bad request with HTML
-void sendBadRequest() {
+void sendBadRequest(int nfds) {
     // Make the header with right version
-    if(request.version) {
+    if(requestArray[nfds].version) {
         g_string_append(response, "HTTP/1.1 501 Not Implemented\r\n");
     }
     else {
@@ -153,16 +153,16 @@ void sendBadRequest() {
 
     // Insert other information to the head
     g_string_append(response, "Server: Emre Can\r\n");
-    g_string_append_printf(response, "Content-Length: %lu\r\n", request.messageBody->len);
+    g_string_append_printf(response, "Content-Length: %lu\r\n", requestArray[nfds].messageBody->len);
     g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
     g_string_append(response, "Connection: Closed\r\n");
     g_string_append(response, "\r\n");
 }
 
 // Send OK requesst
-void sendOKRequest() {
+void sendOKRequest(int nfds) {
     // Append to the response
-    if(request.version) {
+    if(requestArray[nfds].version) {
         g_string_append(response, "HTTP/1.1 200 OK\r\n");
     }
     else {
@@ -171,7 +171,7 @@ void sendOKRequest() {
 
     // Get the HTML 
     GString *html = g_string_new("");
-    html =  createHTMLPage(request.messageBody->str);
+    html =  createHTMLPage(requestArray[nfds].messageBody->str, nfds);
 
     // create the date
     time_t t = time(NULL);
@@ -188,8 +188,8 @@ void sendOKRequest() {
     g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
 
     // Check if the connection is keep-alive
-    if (request.keepAlive) {
-        g_timer_start(request.timer);
+    if (requestArray[nfds].keepAlive) {
+        g_timer_start(requestArray[nfds].timer);
         g_string_append(response, "Connection: Keep-Alive\r\n");
     }
     else {
@@ -198,7 +198,7 @@ void sendOKRequest() {
     g_string_append(response, "\r\n");
 
     // Send the message body if its not HEAD request
-    if (request.method != HEAD) {
+    if (requestArray[nfds].method != HEAD) {
         g_string_append(response, html->str );
     } 
 
@@ -211,7 +211,7 @@ void sendOKRequest() {
 }
 
 // Parsing the first line of the request
-int ParsingFirstLine() {
+int ParsingFirstLine(int nfds) {
     // Get the first line of the message, split it to method
     // path and protocol/version
     gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
@@ -223,13 +223,13 @@ int ParsingFirstLine() {
 
     // Parsing the method
     if (!(g_strcmp0(firstLine[0], "GET"))) {
-        request.method =  GET;
+        requestArray[nfds].method =  GET;
     }
     else if(!(g_strcmp0(firstLine[0], "POST"))) {
-        request.method = POST;
+        requestArray[nfds].method = POST;
     }
     else if(!(g_strcmp0(firstLine[0], "HEAD"))) {
-         request.method = HEAD;
+         requestArray[nfds].method = HEAD;
     }
     else {
         // close the connection
@@ -237,12 +237,12 @@ int ParsingFirstLine() {
     }
 
     // paring the path
-    g_string_assign(request.path, firstLine[1]);
+    g_string_assign(requestArray[nfds].path, firstLine[1]);
 
    // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
-        request.keepAlive = FALSE;
-        request.version = FALSE;
+        requestArray[nfds].keepAlive = FALSE;
+        requestArray[nfds].version = FALSE;
     }
 
     // Check if the HTTP version is supprted
@@ -257,7 +257,7 @@ int ParsingFirstLine() {
 }
 
 // Parse the all the header except the first line
-int parseHeader() {
+int parseHeader(int nfds) {
     // Split the header on lines
     gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2);
     gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
@@ -274,20 +274,20 @@ int parseHeader() {
 
         // Set the host
         if (!(g_strcmp0(toLowerDelim, "host"))) {
-            g_string_assign(request.host, splitOnDelim[1]);
+            g_string_assign(requestArray[nfds].host, splitOnDelim[1]);
         }
 
         // Check if there is Keep-alive connection
         if (!(g_strcmp0(toLowerDelim, "connection"))) {
             if(!(g_strcmp0(splitOnDelim[1], "keep-alive"))) {
-                request.keepAlive = FALSE;
+                requestArray[nfds].keepAlive = FALSE;
             }
         }
         g_strfreev(splitOnDelim);
     }
 
     // Check if there was a host
-    if (request.host == NULL) {
+    if (requestArray[nfds].host == NULL) {
         printf("Host not found, close the connection\n");
         fflush(stdout);
         requestOk = FALSE;
@@ -301,10 +301,10 @@ int parseHeader() {
 }
 
 // Create the request for the client
-int createRequest(GString *gMessage) {
-    initRequest(&request);
+int createRequest(GString *gMessage, int nfds) {
+    initRequest(nfds);
 
-    if(!(requestOk = ParsingFirstLine())) {
+    if(!(requestOk = ParsingFirstLine(nfds))) {
         requestOk = FALSE;
     }
 
@@ -314,36 +314,36 @@ int createRequest(GString *gMessage) {
 
     // Parse the message body
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
-    g_string_assign(request.messageBody, payload_buffer);
+    g_string_assign(requestArray[nfds].messageBody, payload_buffer);
 
     // split the path on question mark
-    gchar **startOfQuery = g_strsplit(request.path->str, "?", 2);
+    gchar **startOfQuery = g_strsplit(requestArray[nfds].path->str, "?", 2);
 
     // Parse the path without the query
-    g_string_assign(request.pathPage, startOfQuery[0]);
+    g_string_assign(requestArray[nfds].pathPage, startOfQuery[0]);
 
     // Check if there is query
     if(startOfQuery[1] != NULL) {
         // Parse the query
-        g_string_assign(request.query, startOfQuery[1]);
+        g_string_assign(requestArray[nfds].query, startOfQuery[1]);
     }
 
     g_strfreev(startOfQuery);
 
     // Check if the parseHeader returns true or false
-    if(!(requestOk = parseHeader())) {
+    if(!(requestOk = parseHeader(nfds))) {
         requestOk =  FALSE;
     }
 
     // Check is requestOk is true or false, send the right
     // response to the client and write it to the logfile
     if(requestOk) {
-        sendOKRequest();
-        logMessage(200);
+        sendOKRequest(nfds);
+        logMessage(200, nfds);
     }
     else {
-        sendBadRequest();
-        logMessage(400);
+        sendBadRequest(nfds);
+        logMessage(400, nfds);
     }
 
     return requestOk;
@@ -362,7 +362,7 @@ void signalHandler(int signal) {
             close(pollfds[i].fd);
         }*/
         // Close the connection
-        closeConnection(request);
+        closeConnection();
     }
 }
 
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in server;
     char message[1024];
     int pollTimeout = 30*1000;
-    struct pollfd pollfds[200];
+    struct pollfd pollfds[200]; 
     gMessage = g_string_new("");
     sscanf(argv[1], "%d", &port);
     int closeConn = FALSE, shrinkArray = FALSE;
@@ -465,8 +465,10 @@ int main(int argc, char *argv[])
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
-                    socklen_t len = (socklen_t) sizeof(request.client);
-                    newfd = accept(sockfd, (struct sockaddr *) &request.client, &len);
+                    socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
+                    newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
+                    fprintf(stdout, "addr is: %s\n", inet_ntoa(requestArray[nfds].client.sin_addr));
+                    fflush(stdout);
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -487,11 +489,12 @@ int main(int argc, char *argv[])
                         fflush(stdout);
                         closeConn = TRUE;
                     }
+
                     fprintf(stdout, "Received:\n%s\n", message);
                     g_string_append_len(gMessage, message, sizeMessage);                    
            
                     // If the method is unknown close the connection
-                    if(!createRequest(gMessage)) {
+                    if(!createRequest(gMessage, nfds-1)) {
                         // Send bad response and
                         // Close the connection after sending respons
                         send(newfd, response->str, response->len, 0);
@@ -501,12 +504,12 @@ int main(int argc, char *argv[])
                         // Send OK respons
                         send(newfd, response->str, response->len, 0);
                     }
-                   
-                    if (!request.keepAlive) {
+   
+                    if (!requestArray[nfds-1].keepAlive) {
                         closeConn = TRUE;
                     }
                     else {
-                        gdouble timeLeft = g_timer_elapsed(request.timer, NULL);
+                        gdouble timeLeft = g_timer_elapsed(requestArray[nfds-1].timer, NULL);
                         if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
                             closeConn = TRUE;
                         }
@@ -520,6 +523,7 @@ int main(int argc, char *argv[])
                         pollfds[i].fd = -1;
                         shrinkArray = TRUE;
                         closeConn = FALSE;
+                        freeRequest(nfds);
                         fprintf(stdout, "Connection closed\n");
                         fflush(stdout);
                     } 
