@@ -73,8 +73,6 @@ void freeRequest() {
 
 // Close the connection
 void closeConnection() {
-    //shutdown(sockfd, SHUT_RDWR);
-    //close(sockfd);
     freeRequest();
     exit(1);
 }
@@ -458,23 +456,26 @@ int main(int argc, char *argv[])
 
         // Close the connection.
         if (!request.keepAlive) {
+            fprintf(stdout, "Not keep-alive, closing the connection.\n");
+            fflush(stdout);
             gMessage = g_string_new("");
             shutdown(connfd, SHUT_RDWR);
             close(connfd);
         }
-
-        // Keep-alive 
-        gdouble timeLeft = g_timer_elapsed(request.timer, NULL);
-        int keep = 1;
-        while(keep == 1) {
-            timeLeft = g_timer_elapsed(request.timer, NULL);
-            if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
-                fprintf(stdout, "Timeout, closing the connection.\n");
-                fflush(stdout);
-                gMessage = g_string_new("");
-                shutdown(connfd, SHUT_RDWR);
-                close(connfd);
-                keep = 0;
+        else {
+            // Keep-alive 
+            gdouble timeLeft = g_timer_elapsed(request.timer, NULL);
+            int keep = 1;
+            while(keep == 1) {
+                timeLeft = g_timer_elapsed(request.timer, NULL);
+                if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
+                    fprintf(stdout, "Timeout, closing the connection.\n");
+                    fflush(stdout);
+                    gMessage = g_string_new("");
+                    shutdown(connfd, SHUT_RDWR);
+                    close(connfd);
+                    keep = 0;
+                }
             }
         }
     }
