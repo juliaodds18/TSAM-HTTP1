@@ -241,8 +241,6 @@ int ParsingFirstLine() {
 
    // If the version is 1.0 not persistant connection
     if(g_str_has_prefix(firstLine[2], "HTTP/1.0")) {
-        fprintf(stdout, "suppose ti be");
-        fflush(stdout);
         request.keepAlive = FALSE;
         request.version = FALSE;
     }
@@ -385,12 +383,14 @@ int main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    int port, sockfd, funcError;
+    int port, sockfd, funcError, currSize, i, j, newfd = -1, on = 1, nfds = 1;
     struct sockaddr_in server;
     char message[1024];
+    int pollTimeout = 30*1000;
+    struct pollfd pollfds[200];
     gMessage = g_string_new("");
     sscanf(argv[1], "%d", &port);
-
+    int closeConn = FALSE, shrinkArray = FALSE;
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -400,6 +400,21 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    // Allow socket descriptor to be used more than once
+    // setsockopt sets options associated with a socket, can only be called for
+    // sockets in the AF_INET domain.
+    // int setsockopt(int s, int level, int optname, char *optval, int optlen)
+    // s = socket descriptor, level = level for which the option is being set
+    // optname = name of a specified socket option (REUSEADDR), optval =
+    // pointer to option data, optlen = length of option data
+    funcError = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
+    // Handle error if setsockopt fails
+    if (funcError < 0) {
+        fprintf(stdout, "setsockopt() failed\n");
+        fflush(stdout);
+        exit(-1);
+    }
+ 
     // Network functions need arguments in network byte order instead of
     // host byte order. The macros htonl, htons convert the values.
     memset(&server, 0, sizeof(server));
@@ -417,7 +432,7 @@ int main(int argc, char *argv[])
 
     // Before the server can accept messages, it has to listen to the
     // welcome port. A backlog of one connection is allowed.
-    funcError = listen(sockfd, 1);
+    funcError = listen(sockfd, 32);
     // Handle error if listen() fails
     if (funcError < 0) {
         fprintf(stdout, "listen() failed\n");
@@ -425,59 +440,109 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    // Initialize the pollfd structure
+    memset(pollfds, 0, sizeof(pollfds));
+    pollfds[0].fd = sockfd;
+    pollfds[0].events = POLLIN;
 
     for (;;) {
-        // We first have to accept a TCP connection, connfd is a fresh
-        // handle dedicated to this connection.
-        socklen_t len = (socklen_t) sizeof(request.client);
-        int connfd = accept(sockfd, (struct sockaddr *) &request.client, &len);
-
-        // Receive from connfd, not sockfd.
-        ssize_t sizeMessage = recv(connfd, message, sizeof(message) - 1, 0);
-
-        message[sizeMessage] = '\0';
-        fprintf(stdout, "Received:\n%s\n", message);
-        g_string_append_len(gMessage, message, sizeMessage);
-
-        // If the method is unknown close the connection
-        if(!createRequest(gMessage)) {
-            // Send bad response and
-            // Close the connection after sending respons
-            send(connfd, response->str, response->len, 0);
-            // closeConn = TRUE;
-        }
-        else {
-            // Send OK respons
-            send(connfd, response->str, response->len, 0);
-        } 
-
-        // Send the message back.
-        //send(connfd, message, (size_t) n, 0);
-
-        // Close the connection.
-        if (!request.keepAlive) {
-            fprintf(stdout, "Not keep-alive, closing the connection.\n");
+        funcError = poll(pollfds, nfds, pollTimeout); 
+        // Check if poll failes
+        if (funcError < 0) {
+            fprintf(stdout, "poll() failed\n");
             fflush(stdout);
-            gMessage = g_string_new("");
-            shutdown(connfd, SHUT_RDWR);
-            close(connfd);
+            break;
         }
-        else {
-            // Keep-alive 
-            gdouble timeLeft = g_timer_elapsed(request.timer, NULL);
-            int keep = 1;
-            while(keep == 1) {
-                timeLeft = g_timer_elapsed(request.timer, NULL);
-                if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
-                    fprintf(stdout, "Timeout, closing the connection.\n");
-                    fflush(stdout);
-                    gMessage = g_string_new("");
-                    shutdown(connfd, SHUT_RDWR);
-                    close(connfd);
-                    keep = 0;
+        if (funcError == 0) {
+            fprintf(stdout, "poll() timed out, exiting\n");
+            fflush(stdout);
+        }
+       
+        currSize = nfds;
+        for (i = 0; i < currSize; i++) {
+            if (pollfds[i].revents & POLLIN) {
+                if (pollfds[i].fd == sockfd) { 
+                    // Accept new incoming connection if exists
+                    // We first have to accept a TCP connection, newfd is a fresh
+                    // handle dedicated to this connection. 
+                    socklen_t len = (socklen_t) sizeof(request.client);
+                    newfd = accept(sockfd, (struct sockaddr *) &request.client, &len);
+                    // Add new connection to pollfd
+                    pollfds[nfds].fd = newfd;
+                    pollfds[nfds].events = POLLIN;
+                    nfds++;             
+                }
+                else {
+                    memset(message, 0, 1024);
+                    int sizeMessage = recv(newfd, message, sizeof(message) - 1, 0);
+       
+                    if (sizeMessage < 0) {
+                        continue;
+                    } 
+
+                    message[sizeMessage] = '\0';
+                    // Check if buffer is empty
+                    if (sizeMessage == 0) {
+                        fprintf(stdout, "Connection closed by client\n");
+                        fflush(stdout);
+                        closeConn = TRUE;
+                    }
+                    fprintf(stdout, "Received:\n%s\n", message);
+                    g_string_append_len(gMessage, message, sizeMessage);                    
+           
+                    // If the method is unknown close the connection
+                    if(!createRequest(gMessage)) {
+                        // Send bad response and
+                        // Close the connection after sending respons
+                        send(newfd, response->str, response->len, 0);
+                        closeConn = TRUE;
+                    }
+                    else {
+                        // Send OK respons
+                        send(newfd, response->str, response->len, 0);
+                    }
+                   
+                    if (!request.keepAlive) {
+                        closeConn = TRUE;
+                    }
+                    else {
+                        gdouble timeLeft = g_timer_elapsed(request.timer, NULL);
+                        if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
+                            closeConn = TRUE;
+                        }
+                    }
+
+                    if (closeConn) {
+                        // Clean up connections that were closed
+                        gMessage = g_string_new("");
+                        shutdown(pollfds[i].fd, SHUT_RDWR);
+                        close(pollfds[i].fd);
+                        pollfds[i].fd = -1;
+                        shrinkArray = TRUE;
+                        closeConn = FALSE;
+                        fprintf(stdout, "Connection closed\n");
+                        fflush(stdout);
+                    } 
                 }
             }
         }
+        // After connection is closed shrink array to  acceprt more connections
+        if (shrinkArray) {
+            int temp = nfds;
+            for (i = 0; i < temp; i++) {
+                if (pollfds[i].fd == -1) {
+                    for (j = i; j < temp; j++) 
+                        pollfds[j].fd = pollfds[j+1].fd;
+                    nfds--;
+                 }
+            }
+            shrinkArray = FALSE;
+        } 
     }
+    for (i = 0; i < nfds; i++){
+        if(pollfds[i].fd >= 0) {
+            close(pollfds[i].fd);
+        }
+    } 
 }
 
