@@ -459,6 +459,7 @@ int main(int argc, char *argv[])
         }
        
         currSize = nfds;
+
         for (i = 0; i < currSize; i++) {
             if (pollfds[i].revents & POLLIN) {
                 if (pollfds[i].fd == sockfd) { 
@@ -467,16 +468,16 @@ int main(int argc, char *argv[])
                     // handle dedicated to this connection. 
                     socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
-                    
+                     
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
                     nfds++;             
                 }
-                else {
+                else {  
                     memset(message, 0, 1024);
-                    int sizeMessage = recv(newfd, message, sizeof(message) - 1, 0);
-       
+                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0);
+
                     if (sizeMessage < 0) {
                         continue;
                     } 
