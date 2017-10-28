@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 30 
+#define KEEP_ALIVE_TIMEOUT 30
 
 // Struct for client request
 typedef struct Request {
@@ -467,8 +467,7 @@ int main(int argc, char *argv[])
                     // handle dedicated to this connection. 
                     socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
-                    fprintf(stdout, "addr is: %s\n", inet_ntoa(requestArray[nfds].client.sin_addr));
-                    fflush(stdout);
+                    
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -488,30 +487,32 @@ int main(int argc, char *argv[])
                         fprintf(stdout, "Connection closed by client\n");
                         fflush(stdout);
                         closeConn = TRUE;
-                    }
-
-                    fprintf(stdout, "Received:\n%s\n", message);
-                    g_string_append_len(gMessage, message, sizeMessage);                    
-           
-                    // If the method is unknown close the connection
-                    if(!createRequest(gMessage, nfds-1)) {
-                        // Send bad response and
-                        // Close the connection after sending respons
-                        send(newfd, response->str, response->len, 0);
-                        closeConn = TRUE;
+                 
                     }
                     else {
-                        // Send OK respons
-                        send(newfd, response->str, response->len, 0);
-                    }
-   
-                    if (!requestArray[nfds-1].keepAlive) {
-                        closeConn = TRUE;
-                    }
-                    else {
-                        gdouble timeLeft = g_timer_elapsed(requestArray[nfds-1].timer, NULL);
-                        if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
+                        fprintf(stdout, "Received:\n%s\n", message);
+                        g_string_append_len(gMessage, message, sizeMessage);                    
+              
+                        // If the method is unknown close the connection
+                        if(!createRequest(gMessage, nfds-1)) {
+                            // Send bad response and
+                            // Close the connection after sending respons
+                            send(newfd, response->str, response->len, 0);
                             closeConn = TRUE;
+                        }
+                        else {
+                            // Send OK respons
+                            send(newfd, response->str, response->len, 0);
+                        }
+    
+                        if (!requestArray[nfds-1].keepAlive) {
+                            closeConn = TRUE;
+                        }
+                        else {
+                            gdouble timeLeft = g_timer_elapsed(requestArray[nfds-1].timer, NULL);
+                            if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
+                                closeConn = TRUE;
+                            }
                         }
                     }
 
@@ -523,7 +524,7 @@ int main(int argc, char *argv[])
                         pollfds[i].fd = -1;
                         shrinkArray = TRUE;
                         closeConn = FALSE;
-                        freeRequest(nfds);
+                        //freeRequest(nfds);
                         fprintf(stdout, "Connection closed\n");
                         fflush(stdout);
                     } 
@@ -537,6 +538,7 @@ int main(int argc, char *argv[])
                 if (pollfds[i].fd == -1) {
                     for (j = i; j < temp; j++) 
                         pollfds[j].fd = pollfds[j+1].fd;
+                        memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
                     nfds--;
                  }
             }
