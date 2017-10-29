@@ -41,6 +41,7 @@ GString *gMessage;
 GString *response;
 int requestOk;
 FILE *logFile;
+int nfds;
 struct Request requestArray[200];
 
 /************** Functions ***************/
@@ -61,13 +62,18 @@ void initRequest(int nfds) {
 
 // free the client requests
 void freeRequest(int nfds) {
-    g_string_free(requestArray[nfds].host, TRUE);
-    g_string_free(requestArray[nfds].path, TRUE);
-    g_string_free(requestArray[nfds].pathPage, TRUE);
-    g_string_free(requestArray[nfds].messageBody, TRUE);
-    g_string_free(requestArray[nfds].query, TRUE);
-    g_string_free(response, TRUE);
-    g_timer_destroy(requestArray[nfds].timer);
+    if(requestArray[nfds].host != NULL)
+        g_string_free(requestArray[nfds].host, TRUE);
+    if(requestArray[nfds].path != NULL)
+        g_string_free(requestArray[nfds].path, TRUE);
+    if(requestArray[nfds].pathPage != NULL)
+        g_string_free(requestArray[nfds].pathPage, TRUE);
+    if(requestArray[nfds].messageBody != NULL)
+        g_string_free(requestArray[nfds].messageBody, TRUE);
+    if(requestArray[nfds].query != NULL)
+        g_string_free(requestArray[nfds].query, TRUE);
+    if(requestArray[nfds].timer != NULL)
+        g_timer_destroy(requestArray[nfds].timer);
 }
 
 // Log the message
@@ -156,6 +162,8 @@ void sendBadRequest(int nfds) {
 void sendOKRequest(int nfds) {
     // Append to the response
     if(requestArray[nfds].version) {
+        fprintf(stdout, "im ok .... \n\n\n");
+        fflush(stdout);
         g_string_append(response, "HTTP/1.1 200 OK\r\n");
     }
     else {
@@ -348,7 +356,10 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         fprintf(stdout, "Caught SIGINT, shutting down all connections\n");
         fflush(stdout);
-
+        g_string_free (gMessage, TRUE);
+        int i;
+        for(i = 0; i < nfds; i++) 
+            freeRequest(i); 
         // Close the connection
         exit(1);
     }
@@ -371,7 +382,8 @@ int main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    int port, sockfd, funcError, currSize, i, j, newfd = -1, on = 1, nfds = 1;
+    int port, sockfd, funcError, currSize, i, j, newfd = -1, on = 1;
+    nfds = 1;
     struct sockaddr_in server;
     char message[1024];
     int pollTimeout = 1000;
@@ -482,12 +494,12 @@ int main(int argc, char *argv[])
                         if(!createRequest(gMessage, i)) {
                             // Send bad response and
                             // Close the connection after sending respons
-                            send(newfd, response->str, response->len, 0);
+                            send(newfd, response->str, response->len, 0); 
                             closeConn = TRUE;
                         }
                         else {
                             // Send OK respons
-                            send(newfd, response->str, response->len, 0);
+                            send(newfd, response->str, response->len, 0); 
                         }
     
                         if (!requestArray[i].keepAlive) {
@@ -499,7 +511,7 @@ int main(int argc, char *argv[])
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                 if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
-                    closeConn = TRUE;
+                    closeConn = TRUE; 
                     requestArray[i].keepAlive = FALSE;
                 }
             }
@@ -510,8 +522,7 @@ int main(int argc, char *argv[])
                 close(pollfds[i].fd);
                 pollfds[i].fd = -1;
                 shrinkArray = TRUE;
-                closeConn = FALSE;
-                //freeRequest(i);
+                closeConn = FALSE;  
                 fprintf(stdout, "Connection closed\n");
                 fflush(stdout);
             } 
