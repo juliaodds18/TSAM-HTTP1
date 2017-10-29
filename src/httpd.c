@@ -275,6 +275,7 @@ int parseHeader(int nfds) {
             }
         }
         g_strfreev(splitOnDelim);
+        g_free(toLowerDelim);
     }
 
     // Check if there was a host
@@ -444,9 +445,7 @@ int main(int argc, char *argv[])
         currSize = nfds;
 
         for (i = 0; i < currSize; i++) {
-            if ((pollfds[i].revents & POLLIN)) {
-                fprintf(stdout, "revents: %d\n", pollfds[i].revents);
-		fflush(stdout); 
+            if ((pollfds[i].revents & POLLIN)) { 
                 if (pollfds[i].fd == sockfd) { 
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
@@ -512,7 +511,7 @@ int main(int argc, char *argv[])
                 pollfds[i].fd = -1;
                 shrinkArray = TRUE;
                 closeConn = FALSE;
-                freeRequest(i);
+                //freeRequest(i);
                 fprintf(stdout, "Connection closed\n");
                 fflush(stdout);
             } 
