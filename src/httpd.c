@@ -115,8 +115,10 @@ GString* createHTMLPage(gchar *body, int nfds) {
     // Make the path to render in the webpage
     g_string_append(html,  "http://");
     //g_string_append(html,  " ");
-    g_string_append_printf(html, "%s", requestArray[nfds].host->str);
+    g_string_append(html, requestArray[nfds].host->str);
     // If it is POST render the message 
+    fprintf(stdout, "host string: %s\n", requestArray[nfds].host->str);
+    fflush(stdout);
     
     g_string_append_printf(html, "%s", requestArray[nfds].pathPage->str);
 
@@ -190,10 +192,10 @@ void sendOKRequest(int nfds) {
     // Check if the connection is keep-alive
     if (requestArray[nfds].keepAlive) {
         g_timer_start(requestArray[nfds].timer);
-        g_string_append(response, "Connection: Keep-Alive\r\n");
+        g_string_append(response, "Connection: keep-alive\r\n");
     }
     else {
-        g_string_append(response, "Connection: Closed\r\n");
+        g_string_append(response, "Connection: closed\r\n");
     }
     g_string_append(response, "\r\n");
 
@@ -269,12 +271,12 @@ int parseHeader(int nfds) {
         }
 
         // Split the lines and set to lowercase
-        gchar **splitOnDelim = g_strsplit_set(splitHeaderLines[i], ":", 2);
+        gchar **splitOnDelim = g_strsplit_set(splitHeaderLines[i], ": ", 2);
         gchar *toLowerDelim = g_ascii_strdown(splitOnDelim[0], -1);
-
+         
         // Set the host
         if (!(g_strcmp0(toLowerDelim, "host"))) {
-            g_string_assign(requestArray[nfds].host, splitOnDelim[1]);
+            g_string_assign(requestArray[nfds].host, g_strstrip(splitOnDelim[1]));
         }
 
         // Check if there is Keep-alive connection
@@ -458,6 +460,8 @@ int main(int argc, char *argv[])
 
         for (i = 0; i < currSize; i++) {
             if ((pollfds[i].revents & POLLIN)) {
+                fprintf(stdout, "revents: %d\n", pollfds[i].revents);
+		fflush(stdout); 
                 if (pollfds[i].fd == sockfd) { 
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
@@ -473,6 +477,8 @@ int main(int argc, char *argv[])
                 else {  
                     memset(message, 0, 1024);
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0);
+		    fprintf(stdout, "Size of message: %d\n", sizeMessage); 
+		    fflush(stdout); 
 
                     if (sizeMessage < 0) {
                         continue;
@@ -484,10 +490,13 @@ int main(int argc, char *argv[])
                         fprintf(stdout, "Connection closed by client\n");
                         fflush(stdout);
                         closeConn = TRUE;
-                 
+			//Tékka hvort keep alive sé ennþá lifandi 
+			//
+
                     }
                     else {
                         fprintf(stdout, "Received:\n%s\n", message);
+                        fflush(stdout);
                         g_string_append_len(gMessage, message, sizeMessage);                    
               
                         // If the method is unknown close the connection
