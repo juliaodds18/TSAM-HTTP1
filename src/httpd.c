@@ -33,6 +33,7 @@ typedef struct Request {
     GTimer *timer;
     GString *gMessage;
     GString *response;
+    GHashTable *parameters;
     struct sockaddr_in client;
     int version;
     int keepAlive;
@@ -43,7 +44,7 @@ int requestOk;
 FILE *logFile;
 int nfds;
 struct Request requestArray[200];
-
+//typedef const void *gconstpointer; 
 /************** Functions ***************/
 
 // Initialize the client request
@@ -57,6 +58,7 @@ void initRequest(int nfds) {
     requestArray[nfds].version = TRUE;
     requestArray[nfds].response = g_string_new(""); 
     requestArray[nfds].gMessage = g_string_new("");
+    requestArray[nfds].parameters = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
 }
@@ -79,6 +81,8 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response != NULL)
         g_string_free(requestArray[nfds].response, TRUE);
+    if(requestArray[nfds].parameters != NULL) 
+        g_hash_table_destroy(requestArray[nfds].parameters);
 }
 
 // Log the message
@@ -114,8 +118,20 @@ void logMessage(int responseCode, int nfds) {
 
 // Create the HTML page
 void createHTMLPage(GString *html, gchar *body, int nfds) {
-    // Create the first part og the HTML string
-    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
+
+    //Create the first part of the HTML string
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
+
+
+    // If there is a bg-field in the URI, generate the page with a background colour
+    if (g_str_has_prefix(requestArray[nfds].query->str, "bg=") && g_str_has_suffix(requestArray[nfds].path->str, "color")) {
+
+        g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3);
+
+    }
+    // If there is no color, just close the
+    g_string_append(html, ">\n");
+    
 
     // Make the path to render in the webpage
     g_string_append(html,  "http://");
@@ -303,6 +319,22 @@ int parseHeader(int nfds) {
     return requestOk;
 }
 
+// A function for parsing the multiple parameters in the URI
+void parseURIParameters(int nfds) {
+    gchar **splitOnAndSign = g_strsplit(requestArray[nfds].query->str, "&", 0);
+  
+    for (int i = 0; splitOnAndSign[i]; i++) {
+        gchar **splitOnEqualSign = g_strsplit(splitOnAndSign[i], "=", 2);
+        
+        g_hash_table_insert(requestArray[nfds].parameters, splitOnAndSign[0], splitOnAndSign[1]);
+
+        g_strfreev(splitOnEqualSign);
+    } 
+    
+ 
+    g_strfreev(splitOnAndSign); 
+}
+
 // Create the request for the client
 int createRequest(int nfds) {
     if(!(requestOk = ParsingFirstLine(nfds))) {
@@ -328,7 +360,7 @@ int createRequest(int nfds) {
         // Parse the query
         g_string_assign(requestArray[nfds].query, startOfQuery[1]);
     }
-
+    parseURIParameters(nfds);
     g_strfreev(startOfQuery);
 
     // Check if the parseHeader returns true or false
