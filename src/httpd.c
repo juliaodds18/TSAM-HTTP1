@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 5
+#define KEEP_ALIVE_TIMEOUT 30
 
 // Struct for client request
 typedef struct Request {
@@ -39,8 +39,6 @@ typedef struct Request {
 } Request;
 
 /********* PUBLIC VARIABLES **********/
-//GString *gMessage;
-//GString *response;
 int requestOk;
 FILE *logFile;
 int nfds;
@@ -359,10 +357,7 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         fprintf(stdout, "Caught SIGINT, shutting down all connections\n");
         fflush(stdout);
- 
-        int i;
-        for(i = 0; i < nfds; i++) 
-        //    freeRequest(i); 
+
         // Close the connection
         exit(1);
     }
@@ -467,17 +462,13 @@ int main(int argc, char *argv[])
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
                     socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
-                    if ((pollfds[i].revents & POLLIN)) { 
-                        newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
+                    newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
 
-                        // Add new connection to pollfd
-                        pollfds[nfds].fd = newfd;
-                        pollfds[nfds].events = POLLIN;
-                        nfds++;             
-                     } 
-                     else {
-                         continue;
-                     }
+                    // Add new connection to pollfd
+                    pollfds[nfds].fd = newfd;
+                    pollfds[nfds].events = POLLIN;
+                    nfds++;             
+                  
                 }
                 else {  
                     memset(message, 0, 1024);
@@ -512,7 +503,7 @@ int main(int argc, char *argv[])
                             closeConn = TRUE;
                         } 
                     }
-               }
+                }
             } 
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
