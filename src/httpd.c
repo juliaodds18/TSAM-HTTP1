@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 30
+#define KEEP_ALIVE_TIMEOUT 5
 
 // Struct for client request
 typedef struct Request {
@@ -31,14 +31,16 @@ typedef struct Request {
     GString *query;
     GString *messageBody;
     GTimer *timer;
+    GString *gMessage;
+    GString *response;
     struct sockaddr_in client;
     int version;
     int keepAlive;
 } Request;
 
 /********* PUBLIC VARIABLES **********/
-GString *gMessage;
-GString *response;
+//GString *gMessage;
+//GString *response;
 int requestOk;
 FILE *logFile;
 int nfds;
@@ -55,7 +57,8 @@ void initRequest(int nfds) {
     requestArray[nfds].query = g_string_new("");
     requestArray[nfds].keepAlive = TRUE;
     requestArray[nfds].version = TRUE;
-    response = g_string_sized_new(1024);
+    requestArray[nfds].response = g_string_new(""); 
+    requestArray[nfds].gMessage = g_string_new("");
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
 }
@@ -74,6 +77,10 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].query, TRUE);
     if(requestArray[nfds].timer != NULL)
         g_timer_destroy(requestArray[nfds].timer);
+    if(requestArray[nfds].gMessage != NULL)
+        g_string_free(requestArray[nfds].gMessage, TRUE);
+    if(requestArray[nfds].response != NULL)
+        g_string_free(requestArray[nfds].response, TRUE);
 }
 
 // Log the message
@@ -98,7 +105,7 @@ void logMessage(int responseCode, int nfds) {
                                         requestArray[nfds].host->str,
                                         methodNames[requestArray[nfds].method],
                                         requestArray[nfds].pathPage->str,
-                                        responseCode );
+                                        responseCode);
 
     // Insert into the log file
     fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile);
@@ -138,36 +145,34 @@ void createHTMLPage(GString *html, gchar *body, int nfds) {
 void sendBadRequest(int nfds) {
     // Make the header with right version
     if(requestArray[nfds].version) {
-        g_string_append(response, "HTTP/1.1 501 Not Implemented\r\n");
+        g_string_append(requestArray[nfds].response, "HTTP/1.1 501 Not Implemented\r\n");
     }
     else {
-        g_string_append(response, "HTTP/1.0 501 Not Implemented\r\n");
+        g_string_append(requestArray[nfds].response, "HTTP/1.0 501 Not Implemented\r\n");
     }
     // create the date
     time_t t = time(NULL);
     struct tm *currentTime = gmtime(&t);
     char timeBuffer[256];
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
-    g_string_append_printf(response, "Date: %s\r\n", timeBuffer); 
+    g_string_append_printf(requestArray[nfds].response, "Date: %s\r\n", timeBuffer); 
 
     // Insert other information to the head
-    g_string_append(response, "Server: Emre Can\r\n");
-    g_string_append_printf(response, "Content-Length: %lu\r\n", requestArray[nfds].messageBody->len);
-    g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
-    g_string_append(response, "Connection: Closed\r\n");
-    g_string_append(response, "\r\n");
+    g_string_append(requestArray[nfds].response, "Server: Emre Can\r\n");
+    g_string_append_printf(requestArray[nfds].response, "Content-Length: %lu\r\n", requestArray[nfds].messageBody->len);
+    g_string_append(requestArray[nfds].response, "Content-Type: text/html; charset=utf-8\r\n");
+    g_string_append(requestArray[nfds].response, "Connection: Closed\r\n");
+    g_string_append(requestArray[nfds].response, "\r\n");
 }
 
 // Send OK requesst
 void sendOKRequest(int nfds) {
     // Append to the response
     if(requestArray[nfds].version) {
-        fprintf(stdout, "im ok .... \n\n\n");
-        fflush(stdout);
-        g_string_append(response, "HTTP/1.1 200 OK\r\n");
+        g_string_append(requestArray[nfds].response, "HTTP/1.1 200 OK\r\n");
     }
     else {
-        g_string_append(response, "HTTP/1.0 200 OK\r\n");
+        g_string_append(requestArray[nfds].response, "HTTP/1.0 200 OK\r\n");
     }
 
     // Get the HTML 
@@ -181,39 +186,39 @@ void sendOKRequest(int nfds) {
     strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
 
     // Insert other information to the head
-    g_string_append_printf(response, "Date: %s\r\n", timeBuffer);
-    g_string_append(response, "Server: Emre Can \r\n");
-    g_string_append(response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
-    g_string_append(response, "Accept-Ranges: bytes\r\n");
-    g_string_append_printf(response, "Content-Length: %lu\r\n", html->len);
-    g_string_append(response, "Content-Type: text/html; charset=utf-8\r\n");
+    g_string_append_printf(requestArray[nfds].response, "Date: %s\r\n", timeBuffer);
+    g_string_append(requestArray[nfds].response, "Server: Emre Can \r\n");
+    g_string_append(requestArray[nfds].response, "Last-Modified: Sat, 07 oct 2017 17:13:01 GMT \r\n");
+    g_string_append(requestArray[nfds].response, "Accept-Ranges: bytes\r\n");
+    g_string_append_printf(requestArray[nfds].response, "Content-Length: %lu\r\n", html->len);
+    g_string_append(requestArray[nfds].response, "Content-Type: text/html; charset=utf-8\r\n");
 
     // Check if the connection is keep-alive
     if (requestArray[nfds].keepAlive) {
         g_timer_start(requestArray[nfds].timer);
-        g_string_append(response, "Connection: keep-alive\r\n");
+        g_string_append(requestArray[nfds].response, "Connection: keep-alive\r\n");
     }
     else {
-        g_string_append(response, "Connection: closed\r\n");
+        g_string_append(requestArray[nfds].response, "Connection: closed\r\n");
     }
-    g_string_append(response, "\r\n");
+    g_string_append(requestArray[nfds].response, "\r\n");
 
     // Send the message body if its not HEAD request
     if (requestArray[nfds].method != HEAD) {
-        g_string_append(response, html->str );
+        g_string_append(requestArray[nfds].response, html->str );
     } 
 
     g_string_free(html, TRUE);
     // Print the message out
-    fprintf(stdout, "Respone: %s\n" , response->str);
-    fflush(stdout);;
+    fprintf(stdout, "Response: %s\n" , requestArray[nfds].response->str);
+    fflush(stdout);
 }
 
 // Parsing the first line of the request
 int ParsingFirstLine(int nfds) {
     // Get the first line of the message, split it to method
     // path and protocol/version
-    gchar **firstLine = g_strsplit(gMessage->str, " ", 3);
+    gchar **firstLine = g_strsplit(requestArray[nfds].gMessage->str, " ", 3);
 
     // If the firs line is smaller than 3 close the connection
     if(g_strv_length(firstLine) < 3) {
@@ -258,7 +263,7 @@ int ParsingFirstLine(int nfds) {
 // Parse the all the header except the first line
 int parseHeader(int nfds) {
     // Split the header on lines
-    gchar **getHeader = g_strsplit(gMessage->str, "\r\n\r\n", 2);
+    gchar **getHeader = g_strsplit(requestArray[nfds].gMessage->str, "\r\n\r\n", 2);
     gchar **splitHeaderLines = g_strsplit(getHeader[0], "\r\n", 0);
 
     // iterate through the header
@@ -301,16 +306,14 @@ int parseHeader(int nfds) {
 }
 
 // Create the request for the client
-int createRequest(GString *gMessage, int nfds) {
-    initRequest(nfds);
-
+int createRequest(int nfds) {
     if(!(requestOk = ParsingFirstLine(nfds))) {
         requestOk = FALSE;
     }
 
     // Get the message body
-    gchar *startOfBody = g_strrstr(gMessage->str, (gchar*)"\r\n\r\n");
-    gchar payload_buffer[gMessage->len];
+    gchar *startOfBody = g_strrstr(requestArray[nfds].gMessage->str, (gchar*)"\r\n\r\n");
+    gchar payload_buffer[requestArray[nfds].gMessage->len];
 
     // Parse the message body
     g_stpcpy(payload_buffer, startOfBody + 4 * sizeof(gchar));
@@ -356,10 +359,10 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         fprintf(stdout, "Caught SIGINT, shutting down all connections\n");
         fflush(stdout);
-        g_string_free (gMessage, TRUE);
+ 
         int i;
         for(i = 0; i < nfds; i++) 
-            freeRequest(i); 
+        //    freeRequest(i); 
         // Close the connection
         exit(1);
     }
@@ -388,7 +391,8 @@ int main(int argc, char *argv[])
     char message[1024];
     int pollTimeout = 1000;
     struct pollfd pollfds[200]; 
-    gMessage = g_string_new("");
+    //gMessage = g_string_new("");
+    //response = g_string_sized_new(1024);
     sscanf(argv[1], "%d", &port);
     int closeConn = FALSE, shrinkArray = FALSE;
     // Create and bind a TCP socket.
@@ -457,57 +461,59 @@ int main(int argc, char *argv[])
         currSize = nfds;
 
         for (i = 0; i < currSize; i++) {
-            if ((pollfds[i].revents & POLLIN)) { 
-                if (pollfds[i].fd == sockfd) { 
+            if ((pollfds[i].revents & POLLIN)) {
+                if ((pollfds[i].fd == sockfd)) {
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
                     socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
-                    newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
-                     
-                    // Add new connection to pollfd
-                    pollfds[nfds].fd = newfd;
-                    pollfds[nfds].events = POLLIN;
-                    nfds++;             
+                    if ((pollfds[i].revents & POLLIN)) { 
+                        newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
+
+                        // Add new connection to pollfd
+                        pollfds[nfds].fd = newfd;
+                        pollfds[nfds].events = POLLIN;
+                        nfds++;             
+                     } 
+                     else {
+                         continue;
+                     }
                 }
                 else {  
                     memset(message, 0, 1024);
+  
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0); 
-
                     if (sizeMessage < 0) {
                         continue;
                     } 
 
                     message[sizeMessage] = '\0';
                     // Check if buffer is empty
-                    if (sizeMessage == 0) {
-                        fprintf(stdout, "Connection closed by client\n");
-                        fflush(stdout);
+                    if (sizeMessage == 0) { 
+                        continue;
                         closeConn = TRUE;
                     }
-                    else {
-                        fprintf(stdout, "Received:\n%s\n", message);
-                        fflush(stdout);
-                        g_string_append_len(gMessage, message, sizeMessage);                    
-              
+                    else {  
+                        initRequest(i);
+                        g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
                         // If the method is unknown close the connection
-                        if(!createRequest(gMessage, i)) {
+                        if(!createRequest(i)) {
                             // Send bad response and
                             // Close the connection after sending respons
-                            send(newfd, response->str, response->len, 0); 
+                            send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0); 
                             closeConn = TRUE;
                         }
                         else {
                             // Send OK respons
-                            send(newfd, response->str, response->len, 0); 
+                            send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0);              
                         }
     
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
                         } 
                     }
-                }
-            }    
+               }
+            } 
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                 if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
@@ -517,7 +523,7 @@ int main(int argc, char *argv[])
             }
             if (closeConn) {
                 // Clean up connections that were closed
-                gMessage = g_string_new("");
+                freeRequest(i);
                 shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
                 pollfds[i].fd = -1;
