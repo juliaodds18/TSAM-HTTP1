@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    int port, sockfd, funcError, currSize, i, j, newfd = -1, on = 1;
+    int port, sockfd, funcError, currSize, i, j, newfd = -1;
     nfds = 1;
     struct sockaddr_in server;
     char message[1024];
@@ -389,27 +389,12 @@ int main(int argc, char *argv[])
     //gMessage = g_string_new("");
     //response = g_string_sized_new(1024);
     sscanf(argv[1], "%d", &port);
-    int closeConn = FALSE, shrinkArray = FALSE;
+    int closeConn = FALSE;
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
     if (sockfd < 0) {
         fprintf(stdout, "Socket() failed\n");
-        fflush(stdout);
-        exit(-1);
-    }
-
-    // Allow socket descriptor to be used more than once
-    // setsockopt sets options associated with a socket, can only be called for
-    // sockets in the AF_INET domain.
-    // int setsockopt(int s, int level, int optname, char *optval, int optlen)
-    // s = socket descriptor, level = level for which the option is being set
-    // optname = name of a specified socket option (REUSEADDR), optval =
-    // pointer to option data, optlen = length of option data
-    funcError = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
-    // Handle error if setsockopt fails
-    if (funcError < 0) {
-        fprintf(stdout, "setsockopt() failed\n");
         fflush(stdout);
         exit(-1);
     }
@@ -471,8 +456,7 @@ int main(int argc, char *argv[])
                   
                 }
                 else {  
-                    memset(message, 0, 1024);
-  
+                    memset(message, 0, 1024); 
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0); 
                     if (sizeMessage < 0) {
                         continue;
@@ -489,22 +473,21 @@ int main(int argc, char *argv[])
                         g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
                         // If the method is unknown close the connection
                         if(!createRequest(i)) {
-                            // Send bad response and
-                            // Close the connection after sending respons
+                            // Send bad response and Close the connection after sending respons
                             send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0); 
                             closeConn = TRUE;
                         }
                         else {
                             // Send OK respons
                             send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0);              
-                        }
-    
+                        } 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
                         } 
                     }
                 }
             } 
+
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                 if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
@@ -512,31 +495,23 @@ int main(int argc, char *argv[])
                     requestArray[i].keepAlive = FALSE;
                 }
             }
+
             if (closeConn) {
                 // Clean up connections that were closed
                 freeRequest(i);
                 shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
                 pollfds[i].fd = -1;
-                shrinkArray = TRUE;
                 closeConn = FALSE;  
                 fprintf(stdout, "Connection closed\n");
                 fflush(stdout);
+                for (j = i; j < nfds; j++) {
+                    pollfds[j].fd = pollfds[j+1].fd;
+                    memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
+                } 
+                nfds--;
             } 
         }
-        // After connection is closed shrink array to  acceprt more connections
-        if (shrinkArray) {
-            int temp = nfds;
-            for (i = 0; i < temp; i++) {
-                if (pollfds[i].fd == -1) {
-                    for (j = i; j < temp; j++) 
-                        pollfds[j].fd = pollfds[j+1].fd;
-                        memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
-                    nfds--;
-                 }
-            }
-            shrinkArray = FALSE;
-        } 
     }
     for (i = 0; i < nfds; i++){
         if(pollfds[i].fd >= 0) {
