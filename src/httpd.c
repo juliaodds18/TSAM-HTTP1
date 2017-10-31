@@ -120,18 +120,7 @@ void logMessage(int responseCode, int nfds) {
 void createHTMLPage(GString *html, gchar *body, int nfds) {
 
     //Create the first part of the HTML string
-    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
-
-
-    // If there is a bg-field in the URI, generate the page with a background colour
-    if (g_str_has_prefix(requestArray[nfds].query->str, "bg=") && g_str_has_suffix(requestArray[nfds].path->str, "color")) {
-
-        g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3);
-
-    }
-    // If there is no color, just close the
-    g_string_append(html, ">\n");
-    
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
 
     // Make the path to render in the webpage
     g_string_append(html,  "http://");
@@ -153,6 +142,18 @@ void createHTMLPage(GString *html, gchar *body, int nfds) {
 
     // Create the last part of the HTML
     g_string_append(html, "\n</body>\n</html>\r\n\r\n");
+}
+
+void createColorHTMLPage(GString *html, int nfds) {
+
+    // Create the first part of the HTML string
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
+
+    // Add the color that was requested as inline HTML
+    g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3);
+
+    g_string_append(html, ">\n</body>\n</html>\r\n\r\n");
+
 }
 
 // Send bad request with HTML
@@ -321,6 +322,20 @@ int parseHeader(int nfds) {
 
 // A function for parsing the multiple parameters in the URI
 void parseURIParameters(int nfds) {
+
+    //Check which page to display: test, color or the regular page 
+    if (g_strcmp0(requestArray[nfds].pathPage->str, "color") == 0) {
+        
+    }
+    else if (g_strcmp0(requestArray[nfds].pathPage->str, "test") == 0) {
+    
+    }
+    else {
+
+    }
+
+
+
     gchar **splitOnAndSign = g_strsplit(requestArray[nfds].query->str, "&", 0);
   
     for (int i = 0; splitOnAndSign[i]; i++) {
@@ -352,14 +367,16 @@ int createRequest(int nfds) {
     // split the path on question mark
     gchar **startOfQuery = g_strsplit(requestArray[nfds].path->str, "?", 2);
 
-    // Parse the path without the query
+    // Parse the path without the query. +1 in order to get rid of the '/' that always comes with it
     g_string_assign(requestArray[nfds].pathPage, startOfQuery[0]);
+    
 
     // Check if there is query
     if(startOfQuery[1] != NULL) {
         // Parse the query
         g_string_assign(requestArray[nfds].query, startOfQuery[1]);
     }
+    
     parseURIParameters(nfds);
     g_strfreev(startOfQuery);
 
