@@ -81,8 +81,8 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response != NULL)
         g_string_free(requestArray[nfds].response, TRUE);
-    //if(requestArray[nfds].parameters != NULL) 
-    //    g_hash_table_destroy(requestArray[nfds].parameters);
+    if(requestArray[nfds].parameters != NULL) 
+        g_hash_table_destroy(requestArray[nfds].parameters);
 }
 
 // Log the message
@@ -120,20 +120,9 @@ void logMessage(int responseCode, int nfds) {
 void createHTMLPage(GString *html, gchar *body, int nfds) {
 
     //Create the first part of the HTML string
-    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
 
-
-    // If there is a bg-field in the URI, generate the page with a background colour
-    /*if (g_str_has_prefix(requestArray[nfds].query->str, "bg=") && g_str_has_suffix(requestArray[nfds].path->str, "color")) {
-
-        g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3);
-
-    }*/
-    // If there is no color, just close the
-    g_string_append(html, ">\n");
-    
-
-    // Make the path to render in the webpage
+       // Make the path to render in the webpage
     g_string_append(html,  "http://");
     //g_string_append(html,  " ");
     g_string_append(html, requestArray[nfds].host->str);
@@ -150,9 +139,37 @@ void createHTMLPage(GString *html, gchar *body, int nfds) {
     if(g_strcmp0(body, "") != 0) {
         g_string_append_printf(html, "\n%s", body);
     }
+    fprintf(stdout, "pathpage: %s\n", requestArray[nfds].pathPage->str); 
+    fflush(stdout); 
+    // If multiple parameters were sent into the function, print'em 
+    if (g_strcmp0(requestArray[nfds].pathPage->str, "/test") == 0) {
+
+        fprintf(stdout, "why are u not here?\n"); 
+        fflush(stdout); 
+        GString *query = g_string_new(g_hash_table_lookup(requestArray[nfds].parameters, "query"));
+        fprintf(stdout, "hellooo\n"); 
+        fflush(stdout);  
+        gchar **splits = g_strsplit(query->str, "&", 0); 
+        for (int i = 0; splits[i]; i++) {
+            g_string_append_printf(html, "\n<br>%s", splits[i]); 
+        }       
+        g_strfreev(splits);  
+        g_string_free(query, TRUE);  
+    } 
 
     // Create the last part of the HTML
     g_string_append(html, "\n</body>\n</html>\r\n\r\n");
+}
+
+void createColorHTMLPage(GString *html, int nfds) {
+
+    //Create the first part of the HTML string
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
+
+    // Add the color that was requested as inline HTML 
+    g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3); 
+
+    g_string_append(html, ">\n</body>\n</html>\r\n\r\n"); 
 }
 
 // Send bad request with HTML
@@ -191,8 +208,14 @@ void sendOKRequest(int nfds) {
 
     // Get the HTML 
     GString *html = g_string_new("");
-    createHTMLPage(html, requestArray[nfds].messageBody->str, nfds);
-
+    
+    // Check which page to display, color or the regular page
+    if (g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0 ) {       
+        createColorHTMLPage(html, nfds); 
+    }
+    else { 
+        createHTMLPage(html, requestArray[nfds].messageBody->str, nfds);
+    }
     // create the date
     time_t t = time(NULL);
     struct tm *currentTime = gmtime(&t);
@@ -319,22 +342,6 @@ int parseHeader(int nfds) {
     return requestOk;
 }
 
-// A function for parsing the multiple parameters in the URI
-void parseURIParameters(int nfds) {
-    gchar **splitOnAndSign = g_strsplit(requestArray[nfds].query->str, "&", 0);
-  
-    for (int i = 0; splitOnAndSign[i]; i++) {
-        gchar **splitOnEqualSign = g_strsplit(splitOnAndSign[i], "=", 2);
-        
-        g_hash_table_insert(requestArray[nfds].parameters, splitOnAndSign[0], splitOnAndSign[1]);
-
-        g_strfreev(splitOnEqualSign);
-    } 
-    
- 
-    g_strfreev(splitOnAndSign); 
-}
-
 // Create the request for the client
 int createRequest(int nfds) {
     if(!(requestOk = ParsingFirstLine(nfds))) {
@@ -360,7 +367,11 @@ int createRequest(int nfds) {
         // Parse the query
         g_string_assign(requestArray[nfds].query, startOfQuery[1]);
     }
-    //parseURIParameters(nfds);
+   
+    if (g_strcmp0(requestArray[nfds].pathPage->str, "/test") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0) {
+          g_hash_table_insert(requestArray[nfds].parameters, "query", requestArray[nfds].query->str); 
+    }
+ 
     g_strfreev(startOfQuery);
 
     // Check if the parseHeader returns true or false
