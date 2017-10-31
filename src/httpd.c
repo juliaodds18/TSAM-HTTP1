@@ -539,7 +539,7 @@ int main(int argc, char *argv[])
                 fflush(stdout);
                 for (j = i; j < nfds; j++) {
                     pollfds[j].fd = pollfds[j+1].fd;
-                    memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
+                    //memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
                 } 
                 nfds--;
             } 
