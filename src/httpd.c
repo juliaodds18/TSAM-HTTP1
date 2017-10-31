@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 5 
+#define KEEP_ALIVE_TIMEOUT 10 
 
 // Struct for client request
 typedef struct Request {
@@ -211,7 +211,11 @@ void sendOKRequest(int nfds) {
     
     // Check which page to display, color or the regular page
     if (g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0 ) {       
-        createColorHTMLPage(html, nfds); 
+        createColorHTMLPage(html, nfds);
+        GString *color = g_string_new(requestArray[nfds].query->str); 
+        g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\n", color->str);
+        g_hash_table_insert(requestArray[nfds].parameters, "cookie", color->str);  
+        g_string_free(color, TRUE);  
     }
     else { 
         createHTMLPage(html, requestArray[nfds].messageBody->str, nfds);
@@ -319,15 +323,22 @@ int parseHeader(int nfds) {
         }
 
         // Check if there is Keep-alive connection
-        if (!(g_strcmp0(toLowerDelim, "connection"))) {
+        if (g_strcmp0(toLowerDelim, "connection") == 0) {
             if(!(g_strcmp0(splitOnDelim[1], "keep-alive"))) {
                 requestArray[nfds].keepAlive = FALSE;
             }
         }
+        //Check if there is cookie
+        if (g_strcmp0(toLowerDelim, "cookie") == 0) {
+            gchar *cookie = g_hash_table_lookup(requestArray[nfds].parameters, "cookie"); 
+            //g_char_strip(cookie, '"');          
+   fprintf(stdout, "this is our cookie: %s\n", cookie); 
+    fflush(stdout); 
+        }
         g_strfreev(splitOnDelim);
         g_free(toLowerDelim);
     }
-
+    
     // Check if there was a host
     if (requestArray[nfds].host == NULL) {
         printf("Host not found, close the connection\n");
