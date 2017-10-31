@@ -44,7 +44,7 @@ int requestOk;
 FILE *logFile;
 int nfds;
 struct Request requestArray[200];
-//typedef const void *gconstpointer; 
+
 /************** Functions ***************/
 
 // Initialize the client request
@@ -488,7 +488,6 @@ int main(int argc, char *argv[])
         } 
        
         currSize = nfds;
-
         for (i = 0; i < currSize; i++) {
             if ((pollfds[i].revents & POLLIN)) {
                 if ((pollfds[i].fd == sockfd)) {
@@ -506,16 +505,13 @@ int main(int argc, char *argv[])
                 }
                 else {  
                     memset(message, 0, 1024); 
-                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0); 
-                    if (sizeMessage < 0) {
-                        continue;
-                    } 
+                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0);
 
                     message[sizeMessage] = '\0';
-                    // Check if buffer is empty
+                    // Check if client closed the connection
                     if (sizeMessage == 0) { 
-                        continue;
                         closeConn = TRUE;
+                        requestArray[i].keepAlive = FALSE;
                     }
                     else {  
                         initRequest(i);
@@ -556,9 +552,9 @@ int main(int argc, char *argv[])
                 fflush(stdout);
                 for (j = i; j < nfds; j++) {
                     pollfds[j].fd = pollfds[j+1].fd;
-                    //memcpy(&requestArray[j+1], &requestArray[j], sizeof(requestArray[j]));
-                } 
-                nfds--;
+               } 
+               currSize--;
+               nfds--;
             } 
         }
     }
