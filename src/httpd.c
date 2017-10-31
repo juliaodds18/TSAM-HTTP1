@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 30
+#define KEEP_ALIVE_TIMEOUT 5 
 
 // Struct for client request
 typedef struct Request {
@@ -58,7 +58,7 @@ void initRequest(int nfds) {
     requestArray[nfds].version = TRUE;
     requestArray[nfds].response = g_string_new(""); 
     requestArray[nfds].gMessage = g_string_new("");
-    //requestArray[nfds].parameters = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+    requestArray[nfds].parameters = g_hash_table_new(g_str_hash, g_str_equal);
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
 }
