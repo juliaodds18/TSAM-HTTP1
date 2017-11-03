@@ -65,23 +65,23 @@ void initRequest(int nfds) {
 
 // free the client requests
 void freeRequest(int nfds) {
-    if(requestArray[nfds].host != NULL)
+   if(requestArray[nfds].host)
         g_string_free(requestArray[nfds].host, TRUE);
-    if(requestArray[nfds].path != NULL)
+   if(requestArray[nfds].path)
         g_string_free(requestArray[nfds].path, TRUE);
-    if(requestArray[nfds].pathPage != NULL)
+    if(requestArray[nfds].pathPage)
         g_string_free(requestArray[nfds].pathPage, TRUE);
-    if(requestArray[nfds].messageBody != NULL)
+    if(requestArray[nfds].messageBody)
         g_string_free(requestArray[nfds].messageBody, TRUE);
-    if(requestArray[nfds].query != NULL)
+    if(requestArray[nfds].query)
         g_string_free(requestArray[nfds].query, TRUE);
-    if(requestArray[nfds].timer != NULL)
+    if(requestArray[nfds].timer)
         g_timer_destroy(requestArray[nfds].timer);
-    if(requestArray[nfds].cookie != NULL)
+    if(requestArray[nfds].cookie)
         g_string_free(requestArray[nfds].cookie, TRUE);
-    if(requestArray[nfds].gMessage != NULL)
+    if(requestArray[nfds].gMessage)
         g_string_free(requestArray[nfds].gMessage, TRUE);
-    if(requestArray[nfds].response != NULL)
+    if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
 }
 
@@ -212,7 +212,9 @@ void sendOKRequest(int nfds) {
     if(g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0) {
         createColorHTMLPage(html, nfds);
         if(g_strcmp0(requestArray[nfds].query->str, "")) {
-            g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\n", requestArray[nfds].query->str);
+            fprintf(stdout, "Im sending Set-cookie: \n");
+            fflush(stdout);
+            g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\r\n", requestArray[nfds].query->str);
             
         }
      
