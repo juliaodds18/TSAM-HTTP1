@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 3
+#define KEEP_ALIVE_TIMEOUT 30
 
 // Struct for client request
 typedef struct Request {
@@ -65,9 +65,12 @@ void initRequest(int nfds) {
 
 // free the client requests
 void freeRequest(int nfds) {
-   if(requestArray[nfds].host)
+    fprintf(stdout, "Before free \n");
+    fflush(stdout);
+
+    if(requestArray[nfds].host)
         g_string_free(requestArray[nfds].host, TRUE);
-   if(requestArray[nfds].path)
+    if(requestArray[nfds].path)
         g_string_free(requestArray[nfds].path, TRUE);
     if(requestArray[nfds].pathPage)
         g_string_free(requestArray[nfds].pathPage, TRUE);
@@ -83,6 +86,9 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
+
+fprintf(stdout, "after free \n");
+    fflush(stdout);
 }
 
 // Log the message
@@ -214,10 +220,8 @@ void sendOKRequest(int nfds) {
         if(g_strcmp0(requestArray[nfds].query->str, "")) {
             fprintf(stdout, "Im sending Set-cookie: \n");
             fflush(stdout);
-            g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\r\n", requestArray[nfds].query->str);
-            
+            g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\r\n", requestArray[nfds].query->str);        
         }
-     
     }
     else {
         createHTMLPage(html, requestArray[nfds].messageBody->str, nfds);
@@ -455,6 +459,7 @@ int main(int argc, char *argv[])
     //response = g_string_sized_new(1024);
     sscanf(argv[1], "%d", &port);
     int closeConn = FALSE;
+    int shrinkArray = FALSE;
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -521,7 +526,7 @@ int main(int argc, char *argv[])
                 }
                 else {  
                     memset(message, 0, 1024); 
-                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message) - 1, 0);
+                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
 
                     message[sizeMessage] = '\0';
                     // Check if client closed the connection
@@ -560,18 +565,28 @@ int main(int argc, char *argv[])
             if (closeConn) {
                 // Clean up connections that were closed
                 freeRequest(i);
-                shutdown(pollfds[i].fd, SHUT_RDWR);
+                //shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
                 pollfds[i].fd = -1;
                 closeConn = FALSE;  
+                shrinkArray = TRUE;
                 fprintf(stdout, "Connection closed\n");
                 fflush(stdout);
-                for (j = i; j < nfds; j++) {
-                    pollfds[j].fd = pollfds[j+1].fd;
-               } 
-               currSize--;
-               nfds--;
-            } 
+           }
+        }
+        if(shrinkArray) {
+            for(i = 0; i < nfds; i++)
+            {
+                if (pollfds[i].fd == -1)
+                {
+                    for (j = i; j < nfds; j++)
+                    {
+                        pollfds[j].fd = pollfds[j+1].fd;
+                        memcpy(&requestArray[j], &requestArray[j+1], sizeof(requestArray[j+1])+1); 
+                    }
+                    nfds--;
+                }
+            }
         }
     }
     for (i = 0; i < nfds; i++){
@@ -580,5 +595,4 @@ int main(int argc, char *argv[])
         }
     } 
 }
-
 
