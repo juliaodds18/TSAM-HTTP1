@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 10 
+#define KEEP_ALIVE_TIMEOUT 3
 
 // Struct for client request
 typedef struct Request {
@@ -33,7 +33,7 @@ typedef struct Request {
     GTimer *timer;
     GString *gMessage;
     GString *response;
-    GHashTable *parameters;
+    GString *cookie;
     struct sockaddr_in client;
     int version;
     int keepAlive;
@@ -58,7 +58,7 @@ void initRequest(int nfds) {
     requestArray[nfds].version = TRUE;
     requestArray[nfds].response = g_string_new(""); 
     requestArray[nfds].gMessage = g_string_new("");
-    requestArray[nfds].parameters = g_hash_table_new(g_str_hash, g_str_equal);
+    requestArray[nfds].cookie = g_string_new("");
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
 }
@@ -77,12 +77,12 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].query, TRUE);
     if(requestArray[nfds].timer != NULL)
         g_timer_destroy(requestArray[nfds].timer);
+    if(requestArray[nfds].cookie != NULL)
+        g_string_free(requestArray[nfds].cookie, TRUE);
     if(requestArray[nfds].gMessage != NULL)
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response != NULL)
-        g_string_free(requestArray[nfds].response, TRUE);
-    if(requestArray[nfds].parameters != NULL) 
-        g_hash_table_destroy(requestArray[nfds].parameters);
+        g_string_free(requestArray[nfds].response, TRUE); 
 }
 
 // Log the message
@@ -120,9 +120,9 @@ void logMessage(int responseCode, int nfds) {
 void createHTMLPage(GString *html, gchar *body, int nfds) {
 
     //Create the first part of the HTML string
-    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");
+    g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body>\n");   
 
-       // Make the path to render in the webpage
+    // Make the path to render in the webpage
     g_string_append(html,  "http://");
     //g_string_append(html,  " ");
     g_string_append(html, requestArray[nfds].host->str);
@@ -139,23 +139,15 @@ void createHTMLPage(GString *html, gchar *body, int nfds) {
     if(g_strcmp0(body, "") != 0) {
         g_string_append_printf(html, "\n%s", body);
     }
-    fprintf(stdout, "pathpage: %s\n", requestArray[nfds].pathPage->str); 
-    fflush(stdout); 
-    // If multiple parameters were sent into the function, print'em 
-    if (g_strcmp0(requestArray[nfds].pathPage->str, "/test") == 0) {
 
-        fprintf(stdout, "why are u not here?\n"); 
-        fflush(stdout); 
-        GString *query = g_string_new(g_hash_table_lookup(requestArray[nfds].parameters, "query"));
-        fprintf(stdout, "hellooo\n"); 
-        fflush(stdout);  
-        gchar **splits = g_strsplit(query->str, "&", 0); 
+    // render the key and the value in the path
+    if (g_strcmp0(requestArray[nfds].pathPage->str, "/test") == 0) {
+        gchar **splits = g_strsplit(requestArray[nfds].query->str, "&", 0);
         for (int i = 0; splits[i]; i++) {
-            g_string_append_printf(html, "\n<br>%s", splits[i]); 
-        }       
-        g_strfreev(splits);  
-        g_string_free(query, TRUE);  
-    } 
+            g_string_append_printf(html, "\n<br>%s", splits[i]);
+        }
+        g_strfreev(splits); 
+    }
 
     // Create the last part of the HTML
     g_string_append(html, "\n</body>\n</html>\r\n\r\n");
@@ -166,10 +158,17 @@ void createColorHTMLPage(GString *html, int nfds) {
     //Create the first part of the HTML string
     g_string_append(html, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Test page.</title>\n</head>\n<body");
 
-    // Add the color that was requested as inline HTML 
-    g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3); 
+    if(g_strcmp0(requestArray[nfds].query->str, "") == 0) {
+        fprintf(stdout, "Cookie:%s\n", requestArray[nfds].cookie->str);
+        fflush(stdout);
+        g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].cookie->str)+3);
+    }
+    else {
+        // Add the color that was requested as inline HTML
+        g_string_append_printf(html, " style=\"background-color:%s\"", (requestArray[nfds].query->str)+3);
+    }
 
-    g_string_append(html, ">\n</body>\n</html>\r\n\r\n"); 
+    g_string_append(html, ">\n</body>\n</html>\r\n\r\n");
 }
 
 // Send bad request with HTML
@@ -209,15 +208,16 @@ void sendOKRequest(int nfds) {
     // Get the HTML 
     GString *html = g_string_new("");
     
-    // Check which page to display, color or the regular page
-    if (g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0 ) {       
+    // Check if client asked for color
+    if(g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0) {
         createColorHTMLPage(html, nfds);
-        GString *color = g_string_new(requestArray[nfds].query->str); 
-        g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\n", color->str);
-        g_hash_table_insert(requestArray[nfds].parameters, "cookie", color->str);  
-        g_string_free(color, TRUE);  
+        if(g_strcmp0(requestArray[nfds].query->str, "")) {
+            g_string_append_printf(requestArray[nfds].response, "Set-Cookie: %s\n", requestArray[nfds].query->str);
+            
+        }
+     
     }
-    else { 
+    else {
         createHTMLPage(html, requestArray[nfds].messageBody->str, nfds);
     }
     // create the date
@@ -323,22 +323,19 @@ int parseHeader(int nfds) {
         }
 
         // Check if there is Keep-alive connection
-        if (g_strcmp0(toLowerDelim, "connection") == 0) {
+        if (!(g_strcmp0(toLowerDelim, "connection"))) {
             if(!(g_strcmp0(splitOnDelim[1], "keep-alive"))) {
                 requestArray[nfds].keepAlive = FALSE;
             }
         }
-        //Check if there is cookie
-        if (g_strcmp0(toLowerDelim, "cookie") == 0) {
-            gchar *cookie = g_hash_table_lookup(requestArray[nfds].parameters, "cookie"); 
-            //g_char_strip(cookie, '"');          
-   fprintf(stdout, "this is our cookie: %s\n", cookie); 
-    fflush(stdout); 
+
+        if (!(g_strcmp0(toLowerDelim, "cookie"))) {
+            g_string_assign(requestArray[nfds].cookie, g_strstrip(splitOnDelim[1]));
         }
         g_strfreev(splitOnDelim);
         g_free(toLowerDelim);
     }
-    
+
     // Check if there was a host
     if (requestArray[nfds].host == NULL) {
         printf("Host not found, close the connection\n");
@@ -351,6 +348,22 @@ int parseHeader(int nfds) {
     g_strfreev(splitHeaderLines);
 
     return requestOk;
+}
+
+// A function for parsing the multiple parameters in the URI
+void parseURIParameters(int nfds) {
+    gchar **splitOnAndSign = g_strsplit(requestArray[nfds].query->str, "&", 0);
+  
+    for (int i = 0; splitOnAndSign[i]; i++) {
+        gchar **splitOnEqualSign = g_strsplit(splitOnAndSign[i], "=", 2);
+        
+//        g_hash_table_insert(requestArray[nfds].parameters, splitOnAndSign[0], splitOnAndSign[1]);
+
+        g_strfreev(splitOnEqualSign);
+    } 
+    
+ 
+    g_strfreev(splitOnAndSign); 
 }
 
 // Create the request for the client
@@ -378,11 +391,7 @@ int createRequest(int nfds) {
         // Parse the query
         g_string_assign(requestArray[nfds].query, startOfQuery[1]);
     }
-   
-    if (g_strcmp0(requestArray[nfds].pathPage->str, "/test") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/color") == 0) {
-          g_hash_table_insert(requestArray[nfds].parameters, "query", requestArray[nfds].query->str); 
-    }
- 
+    //parseURIParameters(nfds);
     g_strfreev(startOfQuery);
 
     // Check if the parseHeader returns true or false
@@ -569,4 +578,5 @@ int main(int argc, char *argv[])
         }
     } 
 }
+
 
