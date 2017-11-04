@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
     fprintf(stdout, "Connected to the Emre Can server\n");
     fflush(stdout);
     // Port number is missing, nothing to be done 
-    if (argc != 2) {
+    if (argc != 3) {
         fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
         fflush(stdout);
         exit(-1);
@@ -467,15 +467,16 @@ int main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    int port, sockfd, funcError, currSize, i, j, newfd = -1;
-    nfds = 1;
+    int portHttp, portHttps, sockfdHttp, sockfdHttps, funcError, currSize, i, j, newfd = -1;
+    nfds = 2;
     struct sockaddr_in server;
     char message[1024];
     int pollTimeout = 1000;
     struct pollfd pollfds[200]; 
     //gMessage = g_string_new("");
     //response = g_string_sized_new(1024);
-    sscanf(argv[1], "%d", &port);
+    sscanf(argv[1], "%d", &portHttp);
+    sscanf(argv[2], "%d", &portHttps);
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
@@ -485,9 +486,10 @@ int main(int argc, char *argv[])
     ctx = SSL_CTX_new(SSLv3_method()); 
 
     // Create and bind a TCP socket.
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfdHttp = socket(AF_INET, SOCK_STREAM, 0);
+    sockfdHttps = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
-    if (sockfd < 0) {
+    if (sockfdHttp < 0 || sockfdHttps < 0) {
         fprintf(stdout, "Socket() failed\n");
         fflush(stdout);
         exit(-1);
@@ -498,11 +500,19 @@ int main(int argc, char *argv[])
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = htonl(INADDR_ANY);
-    server.sin_port = htons(port);
-    funcError = bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
-
+    server.sin_port = htons(portHttp);
+    //server.sin_port = htons(portHttps);
     // Handle error if bind() fails
-    if (funcError < 0) {
+    if (bind(sockfdHttp, (struct sockaddr *) &server, (socklen_t) sizeof(server)) < 0) {
+        fprintf(stdout, "bind() failed\n");
+        fflush(stdout);
+        exit(-1);
+    }
+ 
+    //funcError = listen(sockfdHttps, 32);
+
+    server.sin_port = htons(portHttps);
+    if (bind(sockfdHttps, (struct sockaddr *) &server, (socklen_t) sizeof(server)) < 0) {
         fprintf(stdout, "bind() failed\n");
         fflush(stdout);
         exit(-1);
@@ -510,7 +520,8 @@ int main(int argc, char *argv[])
 
     // Before the server can accept messages, it has to listen to the
     // welcome port. A backlog of one connection is allowed.
-    funcError = listen(sockfd, 32);
+    funcError = listen(sockfdHttp, 32);
+    funcError = listen(sockfdHttps, 32);
     // Handle error if listen() fails
     if (funcError < 0) {
         fprintf(stdout, "listen() failed\n");
@@ -520,8 +531,10 @@ int main(int argc, char *argv[])
 
     // Initialize the pollfd structure
     memset(pollfds, 0, sizeof(pollfds));
-    pollfds[0].fd = sockfd;
+    pollfds[0].fd = sockfdHttp;
     pollfds[0].events = POLLIN;
+    pollfds[1].fd = sockfdHttps;
+    pollfds[1].events = POLLIN;
 
     for (;;) {
         funcError = poll(pollfds, nfds, pollTimeout); 
@@ -535,12 +548,12 @@ int main(int argc, char *argv[])
         currSize = nfds;
         for (i = 0; i < currSize; i++) {
             if ((pollfds[i].revents & POLLIN)) {
-                if ((pollfds[i].fd == sockfd)) {
+                if ((pollfds[i].fd == sockfdHttp)) {
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
                     len = (socklen_t) sizeof(requestArray[nfds].client);
-                    newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
+                    newfd = accept(sockfdHttp, (struct sockaddr *) &requestArray[nfds].client, &len);
 
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
@@ -548,6 +561,19 @@ int main(int argc, char *argv[])
                     nfds++;             
                   
                 }
+                // AQCCEPT SSL HERE??? 
+                /*if ((pollfds[i].fd == sockfdHttps)) {
+                   // Accept new incoming connection if exists
+                    // We first have to accept a TCP connection, newfd is a fresh
+                    // handle dedicated to this connection.
+                    len = (socklen_t) sizeof(requestArray[nfds].client);
+                    newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
+
+                    // Add new connection to pollfd
+                    pollfds[nfds].fd = newfd;
+                    pollfds[nfds].events = POLLIN;
+                    nfds++; 
+                }*/
                 else {  
                     memset(&message, 0, 1024); 
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
@@ -558,10 +584,8 @@ int main(int argc, char *argv[])
                          closeConn = TRUE;
                          fprintf(stdout, "Client closed the connection\n");
                          fflush(stdout);
-                    }
-                    /*if (closeConn == FALSE && requestArray[i].keepAlive) {
-                         g_timer_reset(requestArray[nfds].timer);
-                    }*/
+                         requestArray[i].keepAlive = FALSE;
+                    } 
                     if(closeConn == FALSE) {  
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
@@ -598,6 +622,8 @@ int main(int argc, char *argv[])
 
             if (closeConn) {
                 // Clean up connections that were closed
+                fprintf(stdout, "i : %d\n", i);
+                fflush(stdout);
                 freeRequest(i);
                 shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
@@ -609,7 +635,7 @@ int main(int argc, char *argv[])
            }
         } 
         if(shrinkArray) {
-            for(i = 0; i < nfds; i++)
+            for(i = 0; i <= nfds; i++)
             {
                 if (pollfds[i].fd == -1)
                 {
@@ -623,10 +649,5 @@ int main(int argc, char *argv[])
             }
         }
     }
-    for (i = 0; i < nfds; i++){
-        if(pollfds[i].fd >= 0) {
-            close(pollfds[i].fd);
-        }
-    } 
 }
 
