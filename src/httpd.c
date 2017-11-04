@@ -536,10 +536,8 @@ int main(int argc, char *argv[])
                          closeConn = TRUE;
                          fprintf(stdout, "Client closed the connection\n");
                          fflush(stdout);
-                    }
-                    /*if (closeConn == FALSE && requestArray[i].keepAlive) {
-                         g_timer_reset(requestArray[nfds].timer);
-                    }*/
+                         requestArray[i].keepAlive = FALSE;
+                    } 
                     if(closeConn == FALSE) {  
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
@@ -576,6 +574,8 @@ int main(int argc, char *argv[])
 
             if (closeConn) {
                 // Clean up connections that were closed
+                fprintf(stdout, "i : %d\n", i);
+                fflush(stdout);
                 freeRequest(i);
                 shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
            }
         } 
         if(shrinkArray) {
-            for(i = 0; i < nfds; i++)
+            for(i = 0; i <= nfds; i++)
             {
                 if (pollfds[i].fd == -1)
                 {
@@ -601,10 +601,5 @@ int main(int argc, char *argv[])
             }
         }
     }
-    for (i = 0; i < nfds; i++){
-        if(pollfds[i].fd >= 0) {
-            close(pollfds[i].fd);
-        }
-    } 
 }
 
