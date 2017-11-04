@@ -23,6 +23,7 @@
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
 #define KEEP_ALIVE_TIMEOUT 30
+#define MSG_SIZE  4096
 
 // Struct for client request
 typedef struct Request {
@@ -471,18 +472,17 @@ int main(int argc, char *argv[])
         fflush(stdout);
     }
 
-    int portHttp, portHttps, sockfdHttp, sockfdHttps, funcError, currSize, i, j, newfd = -1;
+    int portHttp, portHttps, sockfdHttp, sockfdHttps, funcError, currSize, i, j, newfd = -1, receivedMsgSize;
     nfds = 2;
     struct sockaddr_in server;
-    char message[1024];
+    char message[MSG_SIZE];
     int pollTimeout = 1000;
     struct pollfd pollfds[200]; 
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
-    int certificate, privateKey;
     SSL_CTX *ctx; 
-    SSL *ssl; 
+    //SSL *ssl; 
 
     // Get ports
     sscanf(argv[1], "%d", &portHttp);
@@ -538,9 +538,20 @@ int main(int argc, char *argv[])
     }
 
     // Load the certificates and the private key 
-    certificate = SSL_CTX_use_certificate_file(ctx, "/fd.crt", SSL_FILETYPE_PEM); 
-    privateKey = SSL_CTX_use_PrivateKey_file(ctx, "/fd.key", SSL_FILETYPE_PEM);
-    ssl = SSL_new(ctx); 
+    if (SSL_CTX_use_certificate_file(ctx, "fd.crt", SSL_FILETYPE_PEM) <= 0) {
+        fprintf(stdout, "Certificate failure\nExiting ... ");
+        exit(-1); 
+    }  
+    if (SSL_CTX_use_PrivateKey_file(ctx, "fd.key", SSL_FILETYPE_PEM) <= 0) {
+        fprintf(stdout, "Private key failure\nExiting ...");
+        exit(-1); 
+    } 
+    if (SSL_CTX_check_private_key(ctx) != 1) {
+        fprintf(stdout, "Not a match\nExiting  ..."); 
+        exit(-1); 
+    }   
+    
+    //ssl = SSL_new(ctx); 
     
     
     // Initialize the pollfd structure
@@ -561,8 +572,6 @@ int main(int argc, char *argv[])
        
         currSize = nfds;
         for (i = 0; i < currSize; i++) {
-            fprintf(stdout, "i: %d\n", i); 
-            fflush(stdout); 
             if ((pollfds[i].revents & POLLIN)) {
                 if ((pollfds[i].fd == sockfdHttp)) {
                     // Accept new incoming connection if exists
@@ -575,6 +584,7 @@ fflush(stdout);
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
+                    initRequest(nfds); 
                     nfds++;             
                   
                 }
@@ -584,43 +594,53 @@ fflush(stdout);
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection.
                     len = (socklen_t) sizeof(requestArray[nfds].client);
-fprintf(stdout, "before accept in httpSSSSSSSSSSSS\n"); 
-fflush(stdout); 
+                    fprintf(stdout, "before accept in httpSSSSSSSSSSSS\n"); 
+                    fflush(stdout); 
                      
                     newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
-                    SSL_set_fd(ssl, newfd); 
-                    if (SSL_accept(ssl) <= 0) {
-fprintf(stdout, "accepted whoo!\n"); 
-fflush(stdout); 
-                        ShutdownSSL(ssl); 
-                    }
-fprintf(stdout, "accept in httpSSSSSSS \n"); 
-fflush(stdout); 
- 
+
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
+                    initRequest(nfds); 
+                    requestArray[nfds].ssl = SSL_new(ctx); 
+                    SSL_set_fd(requestArray[nfds].ssl, newfd);                    
+                    
+                    if (SSL_accept(requestArray[nfds].ssl) <= 0) {
+                        fprintf(stdout, "accepted whoo!\n"); 
+                        fflush(stdout); 
+                        ShutdownSSL(requestArray[nfds].ssl); 
+                    }
+                    fprintf(stdout, "accept in httpSSSSSSS \n"); 
+                    fflush(stdout); 
+
                     nfds++; 
                 }
                 else {  
-                    memset(&message, 0, 1024); 
-//                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
-                    int sizeMessage = SSL_read(ssl, message, sizeof(message)-1);
+                    memset(&message, 0, MSG_SIZE); 
+                   
+                    if (requestArray[i].ssl != NULL) {
+                        receivedMsgSize = SSL_read(requestArray[i].ssl, message, sizeof(message));
+                    }
+                    else {
+                        receivedMsgSize = recv(pollfds[i].fd, message, sizeof(message), 0);
+                    }
 
-
-                    message[sizeMessage] = '\0';
+                    message[receivedMsgSize] = '\0';
                     // Check if client closed the connection
-                    if (sizeMessage == 0) { 
+                    if (receivedMsgSize == 0) { 
                          closeConn = TRUE;
                          fprintf(stdout, "Client closed the connection\n");
                          fflush(stdout);
                          requestArray[i].keepAlive = FALSE;
                     }
-fprintf(stdout, "received: \n %s \n", message); 
-fflush(stdout);  
+
+                    fprintf(stdout, "received: \n %s \n", message); 
+                    fflush(stdout);  
+
                     if(closeConn == FALSE) {  
                         initRequest(i);
-                        g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
+                        g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);                    
                         // If the method is unknown close the connection
                         if(!createRequest(i)) {
                             // Send bad response and Close the connection after sending respons
