@@ -473,14 +473,13 @@ int main(int argc, char *argv[])
     char message[1024];
     int pollTimeout = 1000;
     struct pollfd pollfds[200]; 
-    //gMessage = g_string_new("");
-    //response = g_string_sized_new(1024);
-    sscanf(argv[1], "%d", &portHttp);
-    sscanf(argv[2], "%d", &portHttps);
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
     SSL_CTX *ctx; 
+
+    sscanf(argv[1], "%d", &portHttp);
+    sscanf(argv[2], "%d", &portHttps);
 
     InitializeSSL();
     ctx = SSL_CTX_new(SSLv3_method()); 
@@ -488,6 +487,7 @@ int main(int argc, char *argv[])
     // Create and bind a TCP socket.
     sockfdHttp = socket(AF_INET, SOCK_STREAM, 0);
     sockfdHttps = socket(AF_INET, SOCK_STREAM, 0);
+    
     // Print error if socket failed
     if (sockfdHttp < 0 || sockfdHttps < 0) {
         fprintf(stdout, "Socket() failed\n");
@@ -528,6 +528,9 @@ int main(int argc, char *argv[])
         fflush(stdout);
         exit(-1);
     }
+    
+    int certificate = SSL_CTX_use_certificate_file(ctx, "/fd.crt", SSL_FILETYPE_PEM); 
+    int privateKey = SSL_CTX_use_PrivateKey_file(ctx, "/fd.key", SSL_FILETYPE_PEM);
 
     // Initialize the pollfd structure
     memset(pollfds, 0, sizeof(pollfds));
