@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 30
+#define KEEP_ALIVE_TIMEOUT 3
 
 // Struct for client request
 typedef struct Request {
@@ -531,8 +531,10 @@ int main(int argc, char *argv[])
                     message[sizeMessage] = '\0';
                     // Check if client closed the connection
                     if (sizeMessage == 0) { 
-                        closeConn = TRUE;
-                        requestArray[i].keepAlive = FALSE;
+                         closeConn = TRUE;
+                         fprintf(stdout, "Client closed the connection\n");
+                         fflush(stdout);
+                        //requestArray[i].keepAlive = FALSE;
                     }
                     else {  
                         initRequest(i);
@@ -542,6 +544,8 @@ int main(int argc, char *argv[])
                             // Send bad response and Close the connection after sending respons
                             send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0); 
                             closeConn = TRUE;
+                            fprintf(stdout, "Bad request\n");
+                            fflush(stdout);
                         }
                         else {
                             // Send OK respons
@@ -549,6 +553,8 @@ int main(int argc, char *argv[])
                         } 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
+                            fprintf(stdout, "Not keep-alive\n");
+                            fflush(stdout);
                         } 
                     }
                 }
@@ -558,6 +564,8 @@ int main(int argc, char *argv[])
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                 if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
                     closeConn = TRUE; 
+                    fprintf(stdout, "Time elapsed\n");
+                    fflush(stdout);
                     requestArray[i].keepAlive = FALSE;
                 }
             }
@@ -565,7 +573,7 @@ int main(int argc, char *argv[])
             if (closeConn) {
                 // Clean up connections that were closed
                 freeRequest(i);
-                //shutdown(pollfds[i].fd, SHUT_RDWR);
+                shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
                 pollfds[i].fd = -1;
                 closeConn = FALSE;  
