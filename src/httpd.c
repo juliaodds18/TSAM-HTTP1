@@ -20,7 +20,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 3
+#define KEEP_ALIVE_TIMEOUT 30
 
 // Struct for client request
 typedef struct Request {
@@ -460,6 +460,7 @@ int main(int argc, char *argv[])
     sscanf(argv[1], "%d", &port);
     int closeConn = FALSE;
     int shrinkArray = FALSE;
+    socklen_t len;
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -468,7 +469,8 @@ int main(int argc, char *argv[])
         fflush(stdout);
         exit(-1);
     }
- 
+       
+
     // Network functions need arguments in network byte order instead of
     // host byte order. The macros htonl, htons convert the values.
     memset(&server, 0, sizeof(server));
@@ -515,7 +517,7 @@ int main(int argc, char *argv[])
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
-                    socklen_t len = (socklen_t) sizeof(requestArray[nfds].client);
+                    len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfd, (struct sockaddr *) &requestArray[nfds].client, &len);
 
                     // Add new connection to pollfd
@@ -525,7 +527,7 @@ int main(int argc, char *argv[])
                   
                 }
                 else {  
-                    memset(message, 0, 1024); 
+                    memset(&message, 0, 1024); 
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
 
                     message[sizeMessage] = '\0';
@@ -534,22 +536,24 @@ int main(int argc, char *argv[])
                          closeConn = TRUE;
                          fprintf(stdout, "Client closed the connection\n");
                          fflush(stdout);
-                        //requestArray[i].keepAlive = FALSE;
                     }
-                    else {  
+                    /*if (closeConn == FALSE && requestArray[i].keepAlive) {
+                         g_timer_reset(requestArray[nfds].timer);
+                    }*/
+                    if(closeConn == FALSE) {  
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
                         // If the method is unknown close the connection
                         if(!createRequest(i)) {
                             // Send bad response and Close the connection after sending respons
-                            send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0); 
+                            send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0); 
                             closeConn = TRUE;
                             fprintf(stdout, "Bad request\n");
                             fflush(stdout);
                         }
                         else {
                             // Send OK respons
-                            send(newfd, requestArray[i].response->str, requestArray[i].response->len, 0);              
+                            send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0);              
                         } 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
@@ -581,7 +585,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "Connection closed\n");
                 fflush(stdout);
            }
-        }
+        } 
         if(shrinkArray) {
             for(i = 0; i < nfds; i++)
             {
