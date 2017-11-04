@@ -104,10 +104,10 @@ void DestroySSL() {
     EVP_cleanup(); 
 }
 
-/*void ShutdownSSL() {
+void ShutdownSSL(SSL *ssl) {
     SSL_shutdown(ssl); 
     SSL_free(ssl); 
-}*/
+}
 
 // Log the message
 void logMessage(int responseCode, int nfds) {
@@ -476,11 +476,15 @@ int main(int argc, char *argv[])
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
+    int certificate, privateKey;
     SSL_CTX *ctx; 
+    SSL *ssl; 
 
+    // Get ports
     sscanf(argv[1], "%d", &portHttp);
     sscanf(argv[2], "%d", &portHttps);
 
+    // Initialize the SSL functions, in order to be able to use SSL 
     InitializeSSL();
     ctx = SSL_CTX_new(SSLv3_method()); 
 
@@ -528,10 +532,13 @@ int main(int argc, char *argv[])
         fflush(stdout);
         exit(-1);
     }
-    
-    int certificate = SSL_CTX_use_certificate_file(ctx, "/fd.crt", SSL_FILETYPE_PEM); 
-    int privateKey = SSL_CTX_use_PrivateKey_file(ctx, "/fd.key", SSL_FILETYPE_PEM);
 
+    // Load the certificates and the private key 
+    certificate = SSL_CTX_use_certificate_file(ctx, "/fd.crt", SSL_FILETYPE_PEM); 
+    privateKey = SSL_CTX_use_PrivateKey_file(ctx, "/fd.key", SSL_FILETYPE_PEM);
+    ssl = SSL_new(ctx); 
+    
+    
     // Initialize the pollfd structure
     memset(pollfds, 0, sizeof(pollfds));
     pollfds[0].fd = sockfdHttp;
@@ -557,7 +564,8 @@ int main(int argc, char *argv[])
                     // handle dedicated to this connection. 
                     len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfdHttp, (struct sockaddr *) &requestArray[nfds].client, &len);
-
+fprintf(stdout, "accept in http\n"); 
+fflush(stdout); 
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -565,18 +573,25 @@ int main(int argc, char *argv[])
                   
                 }
                 // AQCCEPT SSL HERE??? 
-                /*if ((pollfds[i].fd == sockfdHttps)) {
+                else if ((pollfds[i].fd == sockfdHttps)) {
                    // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection.
                     len = (socklen_t) sizeof(requestArray[nfds].client);
+fprintf(stdout, "before accept in httpSSSSSSSSSSSS\n"); 
+fflush(stdout); 
                     newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
-
+fprintf(stdout, "accept in httpSSSSSSS \n"); 
+fflush(stdout); 
+                    SSL_set_fd(ssl, newfd); 
+                    if (SSL_accept(ssl) <= 0) {
+                        ShutdownSSL(ssl); 
+                    }
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
                     nfds++; 
-                }*/
+                }
                 else {  
                     memset(&message, 0, 1024); 
                     int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
