@@ -14,7 +14,9 @@
 #include <time.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
-
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 /************* STRUCTS ***********/
 
 // Struct for methods that are allowed
@@ -90,6 +92,22 @@ void freeRequest(int nfds) {
 fprintf(stdout, "after free \n");
     fflush(stdout);
 }
+
+void InitializeSSL() {
+    SSL_load_error_strings(); 
+    SSL_library_init(); 
+    OpenSSL_add_all_algorithms(); 
+}
+
+void DestroySSL() {
+    ERR_free_strings(); 
+    EVP_cleanup(); 
+}
+
+/*void ShutdownSSL() {
+    SSL_shutdown(ssl); 
+    SSL_free(ssl); 
+}*/
 
 // Log the message
 void logMessage(int responseCode, int nfds) {
@@ -461,6 +479,11 @@ int main(int argc, char *argv[])
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
+    SSL_CTX *ctx; 
+
+    InitializeSSL();
+    ctx = SSL_CTX_new(SSLv3_method()); 
+
     // Create and bind a TCP socket.
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     // Print error if socket failed
@@ -469,7 +492,6 @@ int main(int argc, char *argv[])
         fflush(stdout);
         exit(-1);
     }
-       
 
     // Network functions need arguments in network byte order instead of
     // host byte order. The macros htonl, htons convert the values.
