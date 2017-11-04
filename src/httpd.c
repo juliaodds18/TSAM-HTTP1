@@ -39,6 +39,7 @@ typedef struct Request {
     struct sockaddr_in client;
     int version;
     int keepAlive;
+    SSL *ssl;
 } Request;
 
 /********* PUBLIC VARIABLES **********/
@@ -305,6 +306,9 @@ int ParsingFirstLine(int nfds) {
         requestOk = FALSE;
     }
 
+fprintf(stdout, "firstline[0]: %s\n", firstLine[0]); 
+fflush(stdout); 
+
     // paring the path
     g_string_assign(requestArray[nfds].path, firstLine[1]);
 
@@ -557,6 +561,8 @@ int main(int argc, char *argv[])
        
         currSize = nfds;
         for (i = 0; i < currSize; i++) {
+            fprintf(stdout, "i: %d\n", i); 
+            fflush(stdout); 
             if ((pollfds[i].revents & POLLIN)) {
                 if ((pollfds[i].fd == sockfdHttp)) {
                     // Accept new incoming connection if exists
@@ -574,19 +580,23 @@ fflush(stdout);
                 }
                 // AQCCEPT SSL HERE??? 
                 else if ((pollfds[i].fd == sockfdHttps)) {
-                   // Accept new incoming connection if exists
+                    // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection.
                     len = (socklen_t) sizeof(requestArray[nfds].client);
 fprintf(stdout, "before accept in httpSSSSSSSSSSSS\n"); 
 fflush(stdout); 
+                     
                     newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
-fprintf(stdout, "accept in httpSSSSSSS \n"); 
-fflush(stdout); 
                     SSL_set_fd(ssl, newfd); 
                     if (SSL_accept(ssl) <= 0) {
+fprintf(stdout, "accepted whoo!\n"); 
+fflush(stdout); 
                         ShutdownSSL(ssl); 
                     }
+fprintf(stdout, "accept in httpSSSSSSS \n"); 
+fflush(stdout); 
+ 
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -594,7 +604,9 @@ fflush(stdout);
                 }
                 else {  
                     memset(&message, 0, 1024); 
-                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
+//                    int sizeMessage = recv(pollfds[i].fd, message, sizeof(message), 0);
+                    int sizeMessage = SSL_read(ssl, message, sizeof(message)-1);
+
 
                     message[sizeMessage] = '\0';
                     // Check if client closed the connection
@@ -603,7 +615,9 @@ fflush(stdout);
                          fprintf(stdout, "Client closed the connection\n");
                          fflush(stdout);
                          requestArray[i].keepAlive = FALSE;
-                    } 
+                    }
+fprintf(stdout, "received: \n %s \n", message); 
+fflush(stdout);  
                     if(closeConn == FALSE) {  
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, sizeMessage);                    
