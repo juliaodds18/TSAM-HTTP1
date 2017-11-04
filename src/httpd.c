@@ -41,6 +41,7 @@ typedef struct Request {
     int version;
     int keepAlive;
     SSL *ssl;
+    BIO *bio_ssl;
 } Request;
 
 /********* PUBLIC VARIABLES **********/
@@ -594,7 +595,7 @@ fflush(stdout);
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection.
                     len = (socklen_t) sizeof(requestArray[nfds].client);
-                    fprintf(stdout, "before accept in httpSSSSSSSSSSSS\n"); 
+                    fprintf(stdout, "before accept in httpSSSSSSSS\n"); 
                     fflush(stdout); 
                      
                     newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
@@ -604,17 +605,26 @@ fflush(stdout);
                     pollfds[nfds].events = POLLIN;
                     initRequest(nfds); 
                     requestArray[nfds].ssl = SSL_new(ctx); 
-                    SSL_set_fd(requestArray[nfds].ssl, newfd);                    
+                    requestArray[nfds].bio_ssl = BIO_new(BIO_s_socket()); 
+ 
+                    SSL_set_fd(requestArray[nfds].ssl, newfd);
                     
-                    if (SSL_accept(requestArray[nfds].ssl) <= 0) {
-                        fprintf(stdout, "accepted whoo!\n"); 
+                    
+                    int SSLError = SSL_accept(requestArray[nfds].ssl); 
+ 
+                    if (SSLError <= 0) {
+                        fprintf(stdout, "Error: SSL Accept");
                         fflush(stdout); 
-                        ShutdownSSL(requestArray[nfds].ssl); 
+                        ShutdownSSL(requestArray[nfds].ssl);
+                        requestArray[nfds].ssl = NULL;
+                        closeConn = TRUE; 
+                          
                     }
                     fprintf(stdout, "accept in httpSSSSSSS \n"); 
                     fflush(stdout); 
-
-                    nfds++; 
+                    if (SSLError > 0) {
+                        nfds++; 
+                    }
                 }
                 else {  
                     memset(&message, 0, MSG_SIZE); 
@@ -640,19 +650,23 @@ fflush(stdout);
 
                     if(closeConn == FALSE) {  
                         initRequest(i);
-                        g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);                    
-                        // If the method is unknown close the connection
-                        if(!createRequest(i)) {
-                            // Send bad response and Close the connection after sending respons
+                        g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
+             
+                        int createNoError = createRequest(i); 
+
+                        if (requestArray[i].ssl != NULL) {
+                            SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
+                        }
+                        else {
                             send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0); 
-                            closeConn = TRUE;
+                        }
+                        
+                        // If the method is unknown close the connection
+                        if(!createNoError) {
+                           closeConn = TRUE;
                             fprintf(stdout, "Bad request\n");
                             fflush(stdout);
                         }
-                        else {
-                            // Send OK respons
-                            send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0);              
-                        } 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
                             fprintf(stdout, "Not keep-alive\n");
