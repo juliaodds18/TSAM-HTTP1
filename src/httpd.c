@@ -414,8 +414,28 @@ int parseHeader(int nfds) {
 
     return requestOk;
 }
+void extractUserInformation(int nfds, GString* username, GString* password) {
 
-void validateAutherization(int nfds) {
+    GString* authorizationHeader = NULL/*GET THE HEADER*/; 
+    
+    if (authorizationHeader == NULL) {
+        return; 
+    }
+}
+
+int validateAuthentication(int nfds) {
+    
+    GString* username; 
+    GString* password;
+    
+    extractUserInformation(nfds, username, password);
+
+    // If there was no user information, return a 401 page to the client, since they cannot be authenticated
+    if (username == NULL || password == NULL) {
+        return FALSE;
+    }
+
+    
 
 }
 
