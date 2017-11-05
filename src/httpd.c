@@ -454,9 +454,14 @@ int parseHeader(int nfds) {
 }
 
 GString *createHash(GString *salt, GString *password) {
+ fprintf(stdout, "salt: %s\n", salt->str); 
+fprintf(stdout, "password: %s\n", password->str);
+fflush(stdout);  
     // add the password to the salt 
     g_string_append(salt, password->str);
-
+fprintf(stdout, "salt: %s\n", salt->str); 
+fprintf(stdout, "password: %s\n", password->str);
+fflush(stdout);  
     // buffer to store the hashed password
     char hashedPassword[129];
 
@@ -507,8 +512,8 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
     //Get the username and password by splitting the credentials
     splitAuth = g_strsplit((char *) credentials, ":", 0); 
 
-    username->str = splitAuth[0]; 
-    password->str = splitAuth[1]; 
+    g_string_append(username, splitAuth[0]); 
+    g_string_append(password, splitAuth[1]);
 
     g_strfreev(splitAuth); 
 
@@ -543,22 +548,24 @@ int validateAuthentication(int nfds) {
 
     // Get dat salt
     GString *salt = g_string_new(""); 
-    salt->str = g_key_file_get_string(keyfile, "salts", username->str, NULL); 
-    
+    g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
+
+
     //If salt is missing, then you have to find some other way to get high
-    if (salt == NULL) {
+    if (salt->len == 0) {
         fprintf(stdout, "Error: Salt is missing. We're all very salty about that. Sorry.\n"); 
         fflush(stdout); 
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
-        g_string_free(salt, TRUE); 
+        g_string_free(salt, TRUE);
         return FALSE; 
     }
-
+fprintf(stdout, "after salt whoo\n"); 
+fflush(stdout); 
     // Get the password from the database 
     GString *storedPassword = g_string_new(""); 
-    storedPassword->str = g_key_file_get_string(keyfile, "passwords", username->str, NULL); 
+    g_string_append(storedPassword, g_key_file_get_string(keyfile, "passwords", username->str, NULL)); 
     //If there is no stored password, there is an error and the user cannot be authenticated
     if (storedPassword == NULL) {
         fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
@@ -642,18 +649,20 @@ int createRequest(int nfds) {
             } 
             // There is SSL present, but only allow access if authorization is validated
             else {
-fprintf(stdout, "auth: %s\n", requestArray[nfds].authorization->str); 
-fflush(stdout); 
                 if (g_strcmp0(requestArray[nfds].authorization->str, "") != 0) {
                     int authorized = validateAuthentication(nfds);
-                     if (!authorized) {
-                         sendUnauthorized(nfds); 
-                         logMessage(401, nfds); 
-                     }
-                     else {
-                         sendOKRequest(nfds); 
-                         logMessage(200, nfds);  
-                     }
+                    if (!authorized) {
+fprintf(stdout, "not authorized\n"); 
+fflush(stdout); 
+                        sendForbidden(nfds); 
+                        logMessage(403, nfds); 
+                    }
+                    else {
+fprintf(stdout, "authorized\n"); 
+fflush(stdout); 
+                        sendOKRequest(nfds); 
+                        logMessage(200, nfds);  
+                    }
                 }    
                 else {
                     sendUnauthorized(nfds); 
@@ -937,12 +946,16 @@ int main(int argc, char *argv[])
                     fprintf(stdout, "received: \n %s \n", message); 
                     fflush(stdout);  
 
-                    if(closeConn == FALSE) {  
+                    if(closeConn == FALSE) {
+fprintf(stdout, "i: %d\n", i); 
+fflush(stdout);   
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
              
                         // Check if it is Http or Https, wite or send data
-                        int createNoError = createRequest(i); 
+                        int createNoError = createRequest(i);
+fprintf(stdout, "returned from createrequest\n"); 
+fflush(stdout);  
                         if (requestArray[i].ssl != NULL) {
                             SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
                         }
@@ -960,10 +973,11 @@ int main(int argc, char *argv[])
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
                         } 
+fprintf(stdout, "bleble\n"); 
+fflush(stdout); 
                     }
                 }
             } 
-
             // Check if there is keep-alive timeout 
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
