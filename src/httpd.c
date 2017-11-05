@@ -419,17 +419,42 @@ int parseHeader(int nfds) {
 }
 void extractUserInformation(int nfds, GString* username, GString* password) {
 
-    GString* authorizationHeader = NULL/*GET THE HEADER*/; 
+    GString *authorizationHeader = requestArray[nfds].authorization; 
     
     if (authorizationHeader == NULL) {
         return; 
     }
+
+    gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
+
+    //If credentials != Basic, then return 
+    if (!g_strcmp0(splitAuth[1], "Basic")) {
+        g_strfreev(splitAuth); 
+        splitAuth = NULL; 
+        return; 
+    }
+
+    gsize length; 
+    guchar *credentials = g_base64_decode(splitAuth[2], &length); 
+
+    //Done using splitAuth, free it
+    g_strfreev(splitAuth); 
+    splitAuth = NULL; 
+
+    //Get the username and password by splitting the credentials
+    splitAuth = g_strsplit((char *) credentials, ":", 0); 
+    
+    username->str = splitAuth[0]; 
+    password->str = splitAuth[1]; 
+
+    g_strfreev(splitAuth); 
+    splitAuth = NULL; 
 }
 
 int validateAuthentication(int nfds) {
     
-    GString* username; 
-    GString* password;
+    GString* username = g_string_new(""); 
+    GString* password = g_string_new("");
     
     extractUserInformation(nfds, username, password);
 
@@ -437,8 +462,9 @@ int validateAuthentication(int nfds) {
     if (username == NULL || password == NULL) {
         return FALSE;
     }
-
-    
+    fprintf(stdout, "username: %s, password: %s\n", username->str, password->str);  
+    fflush(stdout); 
+    return TRUE;  
 
 }
 
