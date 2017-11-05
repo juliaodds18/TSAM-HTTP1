@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
 
     // Initialize the SSL functions, in order to be able to use SSL 
     InitializeSSL();
-    ctx = SSL_CTX_new(SSLv3_method()); 
+    ctx = SSL_CTX_new(SSLv23_method()); 
 
     // Create and bind a TCP socket.
     sockfdHttp = socket(AF_INET, SOCK_STREAM, 0);
@@ -574,14 +574,14 @@ int main(int argc, char *argv[])
         currSize = nfds;
         for (i = 0; i < currSize; i++) {
             if ((pollfds[i].revents & POLLIN)) {
+                // accept http connection from client
                 if ((pollfds[i].fd == sockfdHttp)) {
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection. 
                     len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfdHttp, (struct sockaddr *) &requestArray[nfds].client, &len);
-fprintf(stdout, "accept in http\n"); 
-fflush(stdout); 
+
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -589,46 +589,40 @@ fflush(stdout);
                     nfds++;             
                   
                 }
-                // AQCCEPT SSL HERE??? 
+                // accept Https connection from client
                 else if ((pollfds[i].fd == sockfdHttps)) {
                     // Accept new incoming connection if exists
                     // We first have to accept a TCP connection, newfd is a fresh
                     // handle dedicated to this connection.
                     len = (socklen_t) sizeof(requestArray[nfds].client);
-                    fprintf(stdout, "before accept in httpSSSSSSSS\n"); 
-                    fflush(stdout); 
-                     
+                    // Accept connection from client 
                     newfd = accept(sockfdHttps, (struct sockaddr *) &requestArray[nfds].client, &len);
 
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
+                    // initialize the struct 
                     initRequest(nfds); 
+                    // Set up SSL connection 
                     requestArray[nfds].ssl = SSL_new(ctx); 
-                    requestArray[nfds].bio_ssl = BIO_new(BIO_s_socket()); 
- 
                     SSL_set_fd(requestArray[nfds].ssl, newfd);
-                    
-                    
                     int SSLError = SSL_accept(requestArray[nfds].ssl); 
  
                     if (SSLError <= 0) {
-                        fprintf(stdout, "Error: SSL Accept");
+                        fprintf(stdout, "Error: Was no accepted ");
                         fflush(stdout); 
                         ShutdownSSL(requestArray[nfds].ssl);
                         requestArray[nfds].ssl = NULL;
-                        closeConn = TRUE; 
-                          
+                        closeConn = TRUE;
                     }
-                    fprintf(stdout, "accept in httpSSSSSSS \n"); 
-                    fflush(stdout); 
-                    if (SSLError > 0) {
+                    else {
                         nfds++; 
                     }
                 }
+                // receve or read data from client
                 else {  
                     memset(&message, 0, MSG_SIZE); 
-                   
+                    // Check if it is SSL connection or over Http
                     if (requestArray[i].ssl != NULL) {
                         receivedMsgSize = SSL_read(requestArray[i].ssl, message, sizeof(message));
                     }
@@ -652,8 +646,8 @@ fflush(stdout);
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
              
+                        // Check if it is Http or Https, wite or send data
                         int createNoError = createRequest(i); 
-
                         if (requestArray[i].ssl != NULL) {
                             SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
                         }
@@ -663,33 +657,29 @@ fflush(stdout);
                         
                         // If the method is unknown close the connection
                         if(!createNoError) {
-                           closeConn = TRUE;
+                            closeConn = TRUE;
                             fprintf(stdout, "Bad request\n");
                             fflush(stdout);
                         }
+                        // Not keep-alive connection, close the connection 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
-                            fprintf(stdout, "Not keep-alive\n");
-                            fflush(stdout);
                         } 
                     }
                 }
             } 
 
+            // Check if there is keep-alive timeout 
             if(requestArray[i].keepAlive) {
                 gdouble timeLeft = g_timer_elapsed(requestArray[i].timer, NULL);
                 if (timeLeft >= KEEP_ALIVE_TIMEOUT) {
                     closeConn = TRUE; 
-                    fprintf(stdout, "Time elapsed\n");
-                    fflush(stdout);
                     requestArray[i].keepAlive = FALSE;
                 }
             }
 
             if (closeConn) {
                 // Clean up connections that were closed
-                fprintf(stdout, "i : %d\n", i);
-                fflush(stdout);
                 freeRequest(i);
                 shutdown(pollfds[i].fd, SHUT_RDWR);
                 close(pollfds[i].fd);
@@ -700,6 +690,7 @@ fflush(stdout);
                 fflush(stdout);
            }
         } 
+        // After closing a connection shrink the poll and the request arryas
         if(shrinkArray) {
             for(i = 0; i <= nfds; i++)
             {
