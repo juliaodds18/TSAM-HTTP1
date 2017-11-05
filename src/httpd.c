@@ -255,6 +255,41 @@ void sendForbidden(int nfds) {
     g_string_append(requestArray[nfds].response, "\r\n\r\n"); 
 }
 
+void sendUnauthorized(int nfds) {
+    g_string_assign(requestArray[nfds].messageBody, "401 - Unauthorized \n");
+    // Make the header with right version
+    if(requestArray[nfds].version) {
+        g_string_append(requestArray[nfds].response, "HTTP/1.1 401 Unauthorized\r\n");
+    }
+    else {
+        g_string_append_printf(requestArray[nfds].response, "HTTP/1.0 401 Unauthorized \r\n");
+    }
+    // create the date
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+    g_string_append_printf(requestArray[nfds].response, "Date: %s\r\n", timeBuffer);
+    // Insert other information to the head
+    g_string_append(requestArray[nfds].response, "Server: Emre Can\r\n");
+    g_string_append_printf(requestArray[nfds].response, "Content-Length: %lu\r\n", requestArray[nfds].messageBody->len);
+    g_string_append(requestArray[nfds].response, "Content-Type: text/html; charset=utf-8\r\n");
+
+    // Check if the connection is keep-alive
+    if (requestArray[nfds].keepAlive) {
+        g_timer_start(requestArray[nfds].timer);
+        g_string_append(requestArray[nfds].response, "Connection: keep-alive\r\n");
+    }
+    else {
+        g_string_append(requestArray[nfds].response, "Connection: closed\r\n");
+    }
+
+    g_string_append_printf(requestArray[nfds].response, "WWW-Authenticate: Basic realm=\"login\"\r\n");
+    g_string_append(requestArray[nfds].response, "\r\n");
+    g_string_append(requestArray[nfds].response, requestArray[nfds].messageBody->str);
+    g_string_append(requestArray[nfds].response, "\r\n\r\n"); 
+}
+
 // Send OK requesst
 void sendOKRequest(int nfds) {
     // Append to the response+
