@@ -546,6 +546,10 @@ int createRequest(int nfds) {
             if(requestArray[nfds].ssl == NULL) {
                 sendForbidden(nfds);          
                 logMessage(403, nfds);
+            } 
+            else {
+                sendUnauthorized(nfds); 
+                logMessage(401, nfds); 
             }
         }
         else { 
