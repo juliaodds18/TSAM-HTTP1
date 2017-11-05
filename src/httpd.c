@@ -415,6 +415,10 @@ int parseHeader(int nfds) {
     return requestOk;
 }
 
+void validateAutherization(int nfds) {
+
+}
+
 // Create the request for the client
 int createRequest(int nfds) {
     if(!(requestOk = ParsingFirstLine(nfds))) {
@@ -451,16 +455,23 @@ int createRequest(int nfds) {
     // Check is requestOk is true or false, send the right
     // response to the client and write it to the logfile
     if(requestOk) {
-        if(requestArray[nfds].ssl == NULL && (g_strcmp0(requestArray[nfds].pathPage->str, "/secret") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/login") == 0)) {
-            sendForbidden(nfds);          
-            logMessage(403, nfds);
+        if(g_strcmp0(requestArray[nfds].pathPage->str, "/secret") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/login") == 0) {
+            // J Ú L Í Á .....................................................
+            // CALLVALID AUTHENTICATION  
+            // Send forbidden response 
+            if(requestArray[nfds].ssl == NULL) {
+                sendForbidden(nfds);          
+                logMessage(403, nfds);
+            }
         }
         else { 
+            // Send ok response
             sendOKRequest(nfds);
             logMessage(200, nfds);
         }
     }
     else {
+        // Send not implement response
         sendNotImplemented(nfds);
         logMessage(400, nfds);
     }
@@ -468,6 +479,9 @@ int createRequest(int nfds) {
     return requestOk;
 }
 
+void initializeDatabase(){
+    GKeyFile *keyfile = g_key_file_new();
+}
 
 // Signaæl handler fo ctrl^c
 void signalHandler(int signal) {
@@ -514,6 +528,7 @@ int main(int argc, char *argv[])
     sscanf(argv[1], "%d", &portHttp);
     sscanf(argv[2], "%d", &portHttps);
 
+    initializeDatabase();
     // Initialize the SSL functions, in order to be able to use SSL 
     InitializeSSL();
     ctx = SSL_CTX_new(SSLv23_method()); 
