@@ -37,6 +37,7 @@ typedef struct Request {
     GString *gMessage;
     GString *response;
     GString *cookie;
+    GString *authorization;
     struct sockaddr_in client;
     int version;
     int keepAlive;
@@ -61,6 +62,7 @@ void initRequest(int nfds) {
     requestArray[nfds].query = g_string_new("");
     requestArray[nfds].keepAlive = TRUE;
     requestArray[nfds].version = TRUE;
+    requestArray[nfds].authorization = g_string_new("");
     requestArray[nfds].response = g_string_new(""); 
     requestArray[nfds].gMessage = g_string_new("");
     requestArray[nfds].cookie = g_string_new("");
@@ -70,9 +72,6 @@ void initRequest(int nfds) {
 
 // free the client requests
 void freeRequest(int nfds) {
-    fprintf(stdout, "Before free \n");
-    fflush(stdout);
-
     if(requestArray[nfds].host)
         g_string_free(requestArray[nfds].host, TRUE);
     if(requestArray[nfds].path)
@@ -87,13 +86,12 @@ void freeRequest(int nfds) {
         g_timer_destroy(requestArray[nfds].timer);
     if(requestArray[nfds].cookie)
         g_string_free(requestArray[nfds].cookie, TRUE);
+    if(requestArray[nfds].authorization)
+        g_string_free(requestArray[nfds].authorization, TRUE);
     if(requestArray[nfds].gMessage)
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
-
-fprintf(stdout, "after free \n");
-    fflush(stdout);
 }
 
 void InitializeSSL() {
@@ -251,7 +249,7 @@ void sendForbidden(int nfds) {
         g_string_append(requestArray[nfds].response, "Connection: closed\r\n");
     }
 
-    g_string_append_printf(requestArray[nfds].response, "WWW-Authenticate: Basic realm=\"login\"\r\n");
+    //g_string_append_printf(requestArray[nfds].response, "WWW-Authenticate: Basic realm=\"login\"\r\n");
     g_string_append(requestArray[nfds].response, "\r\n");
     g_string_append(requestArray[nfds].response, requestArray[nfds].messageBody->str);
     g_string_append(requestArray[nfds].response, "\r\n\r\n"); 
@@ -396,7 +394,12 @@ int parseHeader(int nfds) {
 
         if (!(g_strcmp0(toLowerDelim, "cookie"))) {
             g_string_assign(requestArray[nfds].cookie, g_strstrip(splitOnDelim[1]));
+	}
+
+        if (!(g_strcmp0(toLowerDelim, "authorization"))) {
+            g_string_assign(requestArray[nfds].authorization, g_strstrip(splitOnDelim[1]));
         }
+
         g_strfreev(splitOnDelim);
         g_free(toLowerDelim);
     }
