@@ -607,6 +607,33 @@ void createSalt(GString *salt) {
         
 }
 
+GString *createHash(GString *salt, GString *password) {
+    // add the password to the salt 
+    g_string_append(salt, password->str);
+
+    // buffer to store the hashed password
+    char hashedPassword[129];
+
+    // hash the sting with SHA256
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA512_CTX sha256;
+    SHA512_Init(&sha256);
+    SHA512_Update(&sha256, salt->str, salt->len);
+    SHA512_Final(hash, &sha256);   
+
+    int i = 0;                                                                                    
+    for (i = 0; i < 10000; i++)
+    {
+        SHA512_CTX sha256;
+        SHA512_Init(&sha256);
+        SHA512_Update(&sha256, hashedPassword, SHA256_DIGEST_LENGTH * 2);
+        SHA512_Final(hash, &sha256);
+    }
+
+    hashedPassword[128] = '\0';
+    return g_string_new(hashedPassword);
+}
+
 // Iitialize the database and create one user 
 void initializeDatabase(){
     // create a key file containing a password
@@ -614,12 +641,37 @@ void initializeDatabase(){
     GError* error = NULL;
     
     // Make a salt and hash it
-    GString* salt = g_string_new("");
+    GString *salt = g_string_new("");
     createSalt(salt);
-     
+    GString *password = g_string_new("password");
+    GString *hashedPassword = g_string_new("");
+    // Hash the salt and the password 
+    hashedPassword = createHash(salt, password);
+    
+    // insert into the keyfile
+    g_key_file_set_string(keyfile, "salts", "admin", salt->str);
+    g_key_file_set_string(keyfile, "passwords", "admin", hashedPassword->str);
+
+    // insert into keyfile database
+    int checkError = g_key_file_save_to_file(keyfile, "database.ini" , &error);  
+    if(checkError < 0) {
+        fprintf(stdout, "Error while adding admin to database\n");
+        fflush(stdout);
+        g_string_free(salt, TRUE);
+        g_string_free(password, TRUE);
+        g_string_free(hashedPassword, TRUE);
+        g_key_file_free(keyfile);
+        exit(1);
+    }
+
+    // free the salt and password after use
+    g_string_free(salt, TRUE);
+    g_string_free(password, TRUE);  
+    g_string_free(hashedPassword, TRUE); 
+    g_key_file_free(keyfile);
 }
 
-// Signaæl handler fo ctrl^c
+// Signal handler fo ctrl^c
 void signalHandler(int signal) {
    // Check if it's SIGINT signal
     if (signal == SIGINT) {
