@@ -452,6 +452,35 @@ int parseHeader(int nfds) {
 
     return requestOk;
 }
+
+GString *createHash(GString *salt, GString *password) {
+    // add the password to the salt 
+    g_string_append(salt, password->str);
+
+    // buffer to store the hashed password
+    char hashedPassword[129];
+
+    // hash the sting with SHA256
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA512_CTX sha256;
+    SHA512_Init(&sha256);
+    SHA512_Update(&sha256, salt->str, salt->len);
+    SHA512_Final(hash, &sha256);   
+
+    int i = 0;                                                                                    
+    for (i = 0; i < 10000; i++)
+    {
+        SHA512_CTX sha256;
+        SHA512_Init(&sha256);
+        SHA512_Update(&sha256, hashedPassword, SHA256_DIGEST_LENGTH * 2);
+        SHA512_Final(hash, &sha256);
+    }
+
+    hashedPassword[128] = '\0';
+    return g_string_new(hashedPassword);
+}
+
+
 void extractUserInformation(int nfds, GString* username, GString* password) {
 
     GString *authorizationHeader = requestArray[nfds].authorization; 
@@ -499,6 +528,70 @@ int validateAuthentication(int nfds) {
     fprintf(stdout, "username: %s, password: %s\n", username->str, password->str);  
     fflush(stdout); 
 
+    GKeyFile *keyfile = g_key_file_new(); 
+
+    GError* keyFileError = NULL; 
+    if (!g_key_file_load_from_file(keyfile, "database.ini", G_KEY_FILE_NONE, &keyFileError)) {
+
+        // An error occured, print the error and return
+        fprintf(stdout, "An error occured in opening the keyfile: %s\n", keyFileError->message);
+        g_string_free(username, TRUE); 
+        g_string_free(password, TRUE); 
+        g_key_file_free(keyfile);
+        return FALSE; 
+    }
+
+    // Get dat salt
+    GString *salt = g_string_new(""); 
+    salt->str = g_key_file_get_string(keyfile, "salts", username->str, NULL); 
+    
+    //If salt is missing, then you have to find some other way to get high
+    if (salt == NULL) {
+        fprintf(stdout, "Error: Salt is missing. We're all very salty about that. Sorry.\n"); 
+        fflush(stdout); 
+        g_string_free(username, TRUE); 
+        g_string_free(password, TRUE); 
+        g_key_file_free(keyfile);
+        g_string_free(salt, TRUE); 
+        return FALSE; 
+    }
+
+    // Get the password from the database 
+    GString *storedPassword = g_string_new(""); 
+    storedPassword->str = g_key_file_get_string(keyfile, "passwords", username->str, NULL); 
+    //If there is no stored password, there is an error and the user cannot be authenticated
+    if (storedPassword == NULL) {
+        fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
+        fflush(stdout); 
+        g_string_free(username, TRUE); 
+        g_string_free(password, TRUE); 
+        g_key_file_free(keyfile);
+        g_string_free(salt, TRUE); 
+        g_string_free(storedPassword, TRUE); 
+        return FALSE; 
+    }
+
+    GString *hashedPassword = createHash(salt, password); 
+    
+    // Only authorize if the password in the database matches the password sent by the client
+    if (g_strcmp0(storedPassword->str, hashedPassword->str)) {
+        fprintf(stdout, "Error: Incorrect password. Cannot authenticate.\n"); 
+        fflush(stdout); 
+        g_string_free(username, TRUE); 
+        g_string_free(password, TRUE); 
+        g_key_file_free(keyfile);
+        g_string_free(salt, TRUE); 
+        g_string_free(storedPassword, TRUE);
+        g_string_free(hashedPassword, TRUE);  
+        return FALSE; 
+    }
+    g_string_free(username, TRUE); 
+    g_string_free(password, TRUE); 
+    g_key_file_free(keyfile);
+    g_string_free(salt, TRUE); 
+    g_string_free(storedPassword, TRUE);
+    g_string_free(hashedPassword, TRUE);  
+     
     return TRUE;  
 
 }
@@ -603,33 +696,6 @@ void createSalt(GString *salt) {
 
     g_string_append(salt, result);
         
-}
-
-GString *createHash(GString *salt, GString *password) {
-    // add the password to the salt 
-    g_string_append(salt, password->str);
-
-    // buffer to store the hashed password
-    char hashedPassword[129];
-
-    // hash the sting with SHA256
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA512_CTX sha256;
-    SHA512_Init(&sha256);
-    SHA512_Update(&sha256, salt->str, salt->len);
-    SHA512_Final(hash, &sha256);   
-
-    int i = 0;                                                                                    
-    for (i = 0; i < 10000; i++)
-    {
-        SHA512_CTX sha256;
-        SHA512_Init(&sha256);
-        SHA512_Update(&sha256, hashedPassword, SHA256_DIGEST_LENGTH * 2);
-        SHA512_Final(hash, &sha256);
-    }
-
-    hashedPassword[128] = '\0';
-    return g_string_new(hashedPassword);
 }
 
 // Iitialize the database and create one user 
