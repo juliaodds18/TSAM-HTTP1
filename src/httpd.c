@@ -499,6 +499,7 @@ int validateAuthentication(int nfds) {
     }
     fprintf(stdout, "username: %s, password: %s\n", username->str, password->str);  
     fflush(stdout); 
+
     return TRUE;  
 
 }
@@ -567,8 +568,38 @@ int createRequest(int nfds) {
     return requestOk;
 }
 
+void createSalt(GString *salt) {
+    struct timeval tv;
+    static char result[64];
+
+    gettimeofday(&tv, (struct timezone *) 0);
+    strcat(result, l64a(tv.tv_usec));
+    strcat(result, l64a(tv.tv_sec + getpid() + clock()));
+
+    for (int i = 0; i < 64; i++)
+    {
+        result[i] = ((rand() % (0x7f - 0x34)) + 0x34);
+    }
+
+    result[63] = '\0';
+    
+    fprintf(stdout, "salt: %s\n", result);
+    fflush(stdout);
+
+    g_string_append(salt, result);
+        
+}
+
+// Iitialize the database and create one user 
 void initializeDatabase(){
+    // create a key file containing a password
     GKeyFile *keyfile = g_key_file_new();
+    GError* error = NULL;
+    
+    // Make a salt and hash it
+    GString* salt = g_string_new("");
+    createSalt(salt);
+     
 }
 
 // Signaæl handler fo ctrl^c
@@ -587,6 +618,9 @@ int main(int argc, char *argv[])
 {
     fprintf(stdout, "Connected to the Emre Can server\n");
     fflush(stdout);
+   // GString *salt = g_string_new("");
+   // createSalt(salt);    
+
     // Port number is missing, nothing to be done 
     if (argc != 3) {
         fprintf(stdout, "Wrong number of parameters, must be: %s, <port_number>. Exiting...\n", argv[0]);
