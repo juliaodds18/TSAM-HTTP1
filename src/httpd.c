@@ -455,27 +455,28 @@ int parseHeader(int nfds) {
 void extractUserInformation(int nfds, GString* username, GString* password) {
 
     GString *authorizationHeader = requestArray[nfds].authorization; 
+    gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
     
-    if (authorizationHeader == NULL) {
+    if (g_strv_length(splitAuth) == 0) {
         return; 
     }
-
-    gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
 
     //If credentials != Basic, then return 
     if (!g_strcmp0(splitAuth[1], "Basic")) {
         g_strfreev(splitAuth); 
-        splitAuth = NULL; 
+
         return; 
     }
-
+fprintf(stdout, "what?\n"); 
+fflush(stdout);  
     gsize length; 
     guchar *credentials = g_base64_decode(splitAuth[2], &length); 
-
+fprintf(stdout, "stuff\n"); 
+fflush(stdout); 
     //Done using splitAuth, free it
     g_strfreev(splitAuth); 
-    splitAuth = NULL; 
-
+    fprintf(stdout, "stuff2\n"); 
+fflush(stdout); 
     //Get the username and password by splitting the credentials
     splitAuth = g_strsplit((char *) credentials, ":", 0); 
     
@@ -483,7 +484,7 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
     password->str = splitAuth[1]; 
 
     g_strfreev(splitAuth); 
-    splitAuth = NULL; 
+
 }
 
 int validateAuthentication(int nfds) {
@@ -494,7 +495,7 @@ int validateAuthentication(int nfds) {
     extractUserInformation(nfds, username, password);
 
     // If there was no user information, return a 401 page to the client, since they cannot be authenticated
-    if (username == NULL || password == NULL) {
+    if (!g_strcmp0(username->str, "") || !g_strcmp0(password->str, "")) {
         return FALSE;
     }
     fprintf(stdout, "username: %s, password: %s\n", username->str, password->str);  
@@ -548,9 +549,25 @@ int createRequest(int nfds) {
                 sendForbidden(nfds);          
                 logMessage(403, nfds);
             } 
+            // There is SSL present, but only allow access if authorization is validated
             else {
-                sendUnauthorized(nfds); 
-                logMessage(401, nfds); 
+fprintf(stdout, "auth: %s\n", requestArray[nfds].authorization->str); 
+fflush(stdout); 
+                if (g_strcmp0(requestArray[nfds].authorization->str, "") != 0) {
+                    int authorized = validateAuthentication(nfds);
+                     if (!authorized) {
+                         sendUnauthorized(nfds); 
+                         logMessage(401, nfds); 
+                     }
+                     else {
+                         sendOKRequest(nfds); 
+                         logMessage(200, nfds);  
+                     }
+                }    
+                else {
+                    sendUnauthorized(nfds); 
+                    logMessage(401, nfds);
+                } 
             }
         }
         else { 
