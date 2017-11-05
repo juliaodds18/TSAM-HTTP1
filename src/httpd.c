@@ -456,7 +456,7 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
 
     GString *authorizationHeader = requestArray[nfds].authorization; 
     gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
-    
+   
     if (g_strv_length(splitAuth) == 0) {
         return; 
     }
@@ -467,19 +467,17 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
 
         return; 
     }
-fprintf(stdout, "what?\n"); 
-fflush(stdout);  
-    gsize length; 
-    guchar *credentials = g_base64_decode(splitAuth[2], &length); 
-fprintf(stdout, "stuff\n"); 
-fflush(stdout); 
+
+    gsize length;
+  
+    guchar *credentials = g_base64_decode(splitAuth[1], &length); 
+
     //Done using splitAuth, free it
     g_strfreev(splitAuth); 
-    fprintf(stdout, "stuff2\n"); 
-fflush(stdout); 
+
     //Get the username and password by splitting the credentials
     splitAuth = g_strsplit((char *) credentials, ":", 0); 
-    
+
     username->str = splitAuth[0]; 
     password->str = splitAuth[1]; 
 
