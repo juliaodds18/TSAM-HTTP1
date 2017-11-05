@@ -199,13 +199,13 @@ void createColorHTMLPage(GString *html, int nfds) {
 }
 
 // Send bad request with HTML
-void sendBadRequest(int nfds) {
+void sendNotImplemented(int nfds) {
     // Make the header with right version
     if(requestArray[nfds].version) {
-        g_string_append(requestArray[nfds].response, "HTTP/1.1 501 Not Implemented\r\n");
+        g_string_append(requestArray[nfds].response, "HTTP/1.1 501 Not Implemented  \r\n");
     }
     else {
-        g_string_append(requestArray[nfds].response, "HTTP/1.0 501 Not Implemented\r\n");
+        g_string_append_printf(requestArray[nfds].response, "HTTP/1.0 501 Not Implemented \r\n");
     }
     // create the date
     time_t t = time(NULL);
@@ -222,9 +222,44 @@ void sendBadRequest(int nfds) {
     g_string_append(requestArray[nfds].response, "\r\n");
 }
 
+void sendForbidden(int nfds) { 
+    g_string_assign(requestArray[nfds].messageBody, "403 - Forbidden \n"); 
+    // Make the header with right version
+    if(requestArray[nfds].version) {
+        g_string_append(requestArray[nfds].response, "HTTP/1.1 403 Forbidden\r\n");
+    }
+    else {
+        g_string_append_printf(requestArray[nfds].response, "HTTP/1.0 403 Forbidden\r\n");
+    } 
+    // create the date
+    time_t t = time(NULL);
+    struct tm *currentTime = gmtime(&t);
+    char timeBuffer[256];
+    strftime(timeBuffer, sizeof timeBuffer, "%a, %d %b %Y %H:%M:%S %Z", currentTime);
+    g_string_append_printf(requestArray[nfds].response, "Date: %s\r\n", timeBuffer);
+    // Insert other information to the head
+    g_string_append(requestArray[nfds].response, "Server: Emre Can\r\n");
+    g_string_append_printf(requestArray[nfds].response, "Content-Length: %lu\r\n", requestArray[nfds].messageBody->len);
+    g_string_append(requestArray[nfds].response, "Content-Type: text/html; charset=utf-8\r\n");
+
+    // Check if the connection is keep-alive
+    if (requestArray[nfds].keepAlive) {
+        g_timer_start(requestArray[nfds].timer);
+        g_string_append(requestArray[nfds].response, "Connection: keep-alive\r\n");
+    }
+    else {
+        g_string_append(requestArray[nfds].response, "Connection: closed\r\n");
+    }
+
+    g_string_append_printf(requestArray[nfds].response, "WWW-Authenticate: Basic realm=\"login\"\r\n");
+    g_string_append(requestArray[nfds].response, "\r\n");
+    g_string_append(requestArray[nfds].response, requestArray[nfds].messageBody->str);
+    g_string_append(requestArray[nfds].response, "\r\n\r\n"); 
+}
+
 // Send OK requesst
 void sendOKRequest(int nfds) {
-    // Append to the response
+    // Append to the response+
     if(requestArray[nfds].version) {
         g_string_append(requestArray[nfds].response, "HTTP/1.1 200 OK\r\n");
     }
@@ -380,22 +415,6 @@ int parseHeader(int nfds) {
     return requestOk;
 }
 
-// A function for parsing the multiple parameters in the URI
-void parseURIParameters(int nfds) {
-    gchar **splitOnAndSign = g_strsplit(requestArray[nfds].query->str, "&", 0);
-  
-    for (int i = 0; splitOnAndSign[i]; i++) {
-        gchar **splitOnEqualSign = g_strsplit(splitOnAndSign[i], "=", 2);
-        
-//        g_hash_table_insert(requestArray[nfds].parameters, splitOnAndSign[0], splitOnAndSign[1]);
-
-        g_strfreev(splitOnEqualSign);
-    } 
-    
- 
-    g_strfreev(splitOnAndSign); 
-}
-
 // Create the request for the client
 int createRequest(int nfds) {
     if(!(requestOk = ParsingFirstLine(nfds))) {
@@ -432,11 +451,17 @@ int createRequest(int nfds) {
     // Check is requestOk is true or false, send the right
     // response to the client and write it to the logfile
     if(requestOk) {
-        sendOKRequest(nfds);
-        logMessage(200, nfds);
+        if(requestArray[nfds].ssl == NULL && (g_strcmp0(requestArray[nfds].pathPage->str, "/secret") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/login") == 0)) {
+            sendForbidden(nfds);          
+            logMessage(403, nfds);
+        }
+        else { 
+            sendOKRequest(nfds);
+            logMessage(200, nfds);
+        }
     }
     else {
-        sendBadRequest(nfds);
+        sendNotImplemented(nfds);
         logMessage(400, nfds);
     }
 
@@ -609,11 +634,11 @@ int main(int argc, char *argv[])
                     int SSLError = SSL_accept(requestArray[nfds].ssl); 
  
                     if (SSLError <= 0) {
-                        fprintf(stdout, "Error: Was no accepted ");
+                        fprintf(stdout, "Error: Was not accepted ");
                         fflush(stdout); 
                         ShutdownSSL(requestArray[nfds].ssl);
                         requestArray[nfds].ssl = NULL;
-                        closeConn = TRUE;
+                        //closeConn = TRUE; 
                     }
                     else {
                         nfds++; 
