@@ -563,37 +563,36 @@ fflush(stdout);
         return FALSE; 
     }
 
-    // Get the password from the database 
-    GString *storedPassword = g_string_new(""); 
-    gchar *pulledPassword = g_key_file_get_string(keyfile, "passwords", username->str, NULL); 
-fprintf(stdout, "pulled password: %s\n", pulledPassword);    
+
+    GString *pulledPassword = g_string_new("");
+    g_string_append(pulledPassword, g_key_file_get_value(keyfile, "passwords", username->str, NULL));    
+    fprintf(stdout, "goddamn poassword: %s\n", pulledPassword->str); 
     //If there is no stored password, there is an error and the user cannot be authenticated
-    if (pulledPassword == NULL ) {
+    if (pulledPassword->len == 0) {
         fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
         fflush(stdout); 
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
         g_string_free(salt, TRUE); 
-        g_string_free(storedPassword, TRUE); 
+        g_string_free(pulledPassword, TRUE); 
         return FALSE; 
     }
-    g_string_append(storedPassword, pulledPassword); 
+    //g_string_append(storedPassword, pulledPassword->str); 
 fprintf(stdout, "after getting password whoo\n"); 
 fflush(stdout); 
 
-    GString *hashedPassword = createHash(salt, password); 
-   fprintf(stdout, "here?\n"); 
-fflush(stdout);  
+    GString *hashedPassword = createHash(salt, password);  
+      
     // Only authorize if the password in the database matches the password sent by the client
-    if (g_strcmp0(storedPassword->str, hashedPassword->str)) {
+    if (!g_strcmp0(pulledPassword->str, hashedPassword->str)) {
         fprintf(stdout, "Error: Incorrect password. Cannot authenticate.\n"); 
         fflush(stdout); 
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
         g_string_free(salt, TRUE); 
-        g_string_free(storedPassword, TRUE);
+        g_string_free(pulledPassword, TRUE);
         g_string_free(hashedPassword, TRUE);  
         return FALSE; 
     }
@@ -601,7 +600,7 @@ fflush(stdout);
     g_string_free(password, TRUE); 
     g_key_file_free(keyfile);
     g_string_free(salt, TRUE); 
-    g_string_free(storedPassword, TRUE);
+    g_string_free(pulledPassword, TRUE);
     g_string_free(hashedPassword, TRUE);  
      
     return TRUE;  
@@ -725,12 +724,14 @@ void initializeDatabase(){
     GString *hashedPassword = g_string_new("");
     // Hash the salt and the password 
     hashedPassword = createHash(salt, password);
-    
+fprintf(stdout, "hashedpassword: %s\n", hashedPassword->str);  
     // insert into the keyfile
+    g_key_file_set_string(keyfile, "passwords", "admin", hashedPassword->str);
     g_key_file_set_string(keyfile, "salts", "admin", salt->str);
     g_key_file_set_string(keyfile, "passwords", "admin", hashedPassword->str);
 
-    // insert into keyfile database
+
+   // insert into keyfile database
     int checkError = g_key_file_save_to_file(keyfile, "database.ini" , &error);  
     if(checkError < 0) {
         fprintf(stdout, "Error while adding admin to database\n");
