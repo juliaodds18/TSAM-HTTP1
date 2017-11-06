@@ -1,16 +1,20 @@
-In memory Hyper Text Transfer Protocol Server
+In memory Hyper Text Transfer Protocol Secure Server
 Implemented in C 
 
 About 
 The server receives requests from clients, parses the request header and generates 
 an in-memory HTML page, which is sent back to the client. Every time a client sends
 a request, information about it is stored in logfile.log. 
+The client can choose between using HTTP and HTTPS, depending on the port it initiates
+the communication to. 
 
 Usage
-To start the server, type in: ./src/httpd PORT
-To test the GET method, either use a browser or write: curl -v 127.0.0.1:PORT to the command line
-To test the POST method, write: curl -v --data "Some message" 127.0.0.1:PORT
-To test a bad request, write curl -v -X PUT 127.0.0.1:PORT 
+To start the server, type in: ./src/httpd HTTPPORT HTTPSPORT
+For a GET request in browser, type http://127.0.0.1:HTTPPORT/somepage
+For a color page in browser, type http://127.0.0.1:HTTPPORT/color?bg=red (or the color of choice)
+For a list of URI's in browser, type: http://127.0.0.1:HTTPPORT/test?key1=value1&key2=value2
+To authenticate yourself, type: http://127.0.0.1:HTTPPORT/secret
+Note: For secure communication, use https:// and HTTPSPORT instead. 
 
 Implementation 
 The server is implemented using polling. It first creates a listening socket, which is used
@@ -20,9 +24,37 @@ adds it to the socket-array, which is used to store the sockets (or file descrip
 If a connection has data to send, the server receives it, then parses its header. It gathers
 all the information it needs to know and logs it. Then the server generates the appropriate 
 HTML page, adds a header and sends the data back to the client. 
+For secure communication, a second listening port has been implemented. That port accepts
+requests via SSL, and sends packets back via SSL as well. 
 
-The Sad Part 
-The server does not really work. It seems to respond to the browser, along with the appropriate 
-response header and body, but the server does not receive it. Therefore, the HTML page is never
-displayed. We do not know what causes this, even though we spent hours on trying to fix it. 
-We did not implement keep-alive, as we simply ran out of time.
+Fairness
+The server is fair in such a way that there is only one call to recv/ssl_read per polling loop.
+This way, constant reception of messages from a single client is prevented. Each connected client
+gets their chance to communicate with the server. This means that every client will get served
+eventually, even though it does not happen immediately.  
+
+Why is HTTP basic authentication not secure? 
+HTTP Basic authentication is insecure for a few reasons. First of all, it results in a cleartext
+transmission of the user's password over the physical network. Even though it is encoded using 
+base64, that can be decrypted rather easily. 
+Unencrypted communication is also vulnerable to spoofing. There is a chance that the client is 
+communicating with a hostile server, that can easily obtain the unencrypted credentials and
+store them for malicious usage. 
+It is necessary to store transmit passwords with SSL, since the communication is encrypted
+and hidden from potential intruders. By doing so, the communication will become much harder 
+to decrypt.   
+Source: https://tools.ietf.org/html/rfc7617
+
+Resources: 
+HP OpenVMS Systems Documentation - SSL Programming Tutorial: 
+http://h41379.www4.hpe.com/doc/83final/ba554_90007/ch04s03.html
+Feisty Duck - OpenSSL Cookbook: 
+https://www.feistyduck.com/library/openssl-cookbook/
+Authentication - RFC7235:
+https://tools.ietf.org/html/rfc7235
+The 'Basic' Authentication Scheme- RFC7617:
+https://tools.ietf.org/html/rfc7617
+IBM - Using poll() instead of select(): 
+https://www.ibm.com/support/knowledgecenter/ssw_ibm_i_71/rzab6/poll.h
+Gnome Developer - GLib Documentation: 
+https://developer.gnome.org
