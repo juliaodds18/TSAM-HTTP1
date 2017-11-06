@@ -550,7 +550,8 @@ int validateAuthentication(int nfds) {
     GString *salt = g_string_new(""); 
     g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
 
-
+    fprintf(stdout, "salt: %s\n", salt->str);
+fflush(stdout);  
     //If salt is missing, then you have to find some other way to get high
     if (salt->len == 0) {
         fprintf(stdout, "Error: Salt is missing. We're all very salty about that. Sorry.\n"); 
@@ -565,9 +566,10 @@ fprintf(stdout, "after salt whoo\n");
 fflush(stdout); 
     // Get the password from the database 
     GString *storedPassword = g_string_new(""); 
-    g_string_append(storedPassword, g_key_file_get_string(keyfile, "passwords", username->str, NULL)); 
+    gchar *pulledPassword = g_key_file_get_string(keyfile, "passwords", username->str, NULL); 
+   
     //If there is no stored password, there is an error and the user cannot be authenticated
-    if (storedPassword == NULL) {
+    if (pulledPassword == NULL) {
         fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
         fflush(stdout); 
         g_string_free(username, TRUE); 
@@ -577,9 +579,13 @@ fflush(stdout);
         g_string_free(storedPassword, TRUE); 
         return FALSE; 
     }
+    g_string_append(storedPassword, pulledPassword); 
+fprintf(stdout, "after getting password whoo\n"); 
+fflush(stdout); 
 
     GString *hashedPassword = createHash(salt, password); 
-    
+   fprintf(stdout, "here?\n"); 
+fflush(stdout);  
     // Only authorize if the password in the database matches the password sent by the client
     if (g_strcmp0(storedPassword->str, hashedPassword->str)) {
         fprintf(stdout, "Error: Incorrect password. Cannot authenticate.\n"); 
