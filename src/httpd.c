@@ -42,6 +42,7 @@ typedef struct Request {
     int version;
     int keepAlive;
     SSL *ssl;
+    GString* username; 
 } Request;
 
 /********* PUBLIC VARIABLES **********/
@@ -67,6 +68,7 @@ void initRequest(int nfds) {
     requestArray[nfds].cookie = g_string_new("");
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
+    requestArray[nfds].username = g_string_new(""); 
 }
 
 void ShutdownSSL(SSL *ssl) {
@@ -97,6 +99,9 @@ void freeRequest(int nfds) {
     if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
     ShutdownSSL(requestArray[nfds].ssl);
+      //  g_string_free(requestArray[nfds].response, TRUE);
+    if(requestArray[nfds].username) 
+        g_string_free(requestArray[nfds].username, TRUE); 
 }
 
 void InitializeSSL() {
@@ -129,11 +134,20 @@ void logMessage(int responseCode, int nfds) {
 
     // Make the string to send into the log file
     GString *logString = g_string_new(NULL);
-    g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer,
+    
+    if (!requestArray[nfds].username) {
+        g_string_printf(logString, "%s : %s %s\n%s : %d\n", timeBuffer,
                                         requestArray[nfds].host->str,
                                         methodNames[requestArray[nfds].method],
                                         requestArray[nfds].pathPage->str,
                                         responseCode);
+    }
+    else {
+         g_string_printf(logString, "%s : %s %s authenticated", timeBuffer,
+                                        requestArray[nfds].host->str,
+                                        requestArray[nfds].username->str
+                                        );
+    }
 
     // Insert into the log file
     fwrite(logString->str, (size_t) sizeof(gchar), (size_t) logString->len, logFile);
@@ -459,9 +473,9 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
     }
 
     //If credentials != Basic, then return 
-    if (!g_strcmp0(splitAuth[1], "Basic")) {
+    if (!g_strcmp0(splitAuth[1], "Basic") || g_strv_length(splitAuth) != 2) {
         g_strfreev(splitAuth); 
-
+        g_string_free(authorizationHeader, TRUE); 
         return; 
     }
 
@@ -471,13 +485,18 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
     //Done using splitAuth, free it
     g_strfreev(splitAuth); 
 
+
     //Get the username and password by splitting the credentials
     splitAuth = g_strsplit((char *) credentials, ":", 0); 
 
     g_string_append(username, splitAuth[0]); 
     g_string_append(password, splitAuth[1]);
-
+ 
+    //Add the username to the struct
+    g_string_append(requestArray[nfds].username, splitAuth[0]); 
+    
     g_strfreev(splitAuth); 
+    g_string_free(authorizationHeader, TRUE); 
 
 }
 
