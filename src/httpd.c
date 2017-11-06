@@ -917,7 +917,7 @@ int main(int argc, char *argv[])
                         fflush(stdout);  
   
                         if(closeConn == FALSE) {  
-                            initRequest(i);
+                        //    initRequest(i);
                             g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
                
                             // Check if it is Http or Https, wite or send data
