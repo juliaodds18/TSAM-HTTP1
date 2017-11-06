@@ -22,7 +22,7 @@
 // Struct for methods that are allowed
 typedef enum {HEAD, POST, GET} Methods;
 const char* methodNames[] = {"HEAD", "POST", "GET"};
-#define KEEP_ALIVE_TIMEOUT 30
+#define KEEP_ALIVE_TIMEOUT 3
 #define MSG_SIZE  4096
 
 // Struct for client request
@@ -43,6 +43,7 @@ typedef struct Request {
     int keepAlive;
     SSL *ssl;
     GString* username; 
+    GString* password;
 } Request;
 
 /********* PUBLIC VARIABLES **********/
@@ -69,6 +70,7 @@ void initRequest(int nfds) {
     requestOk = TRUE;
     requestArray[nfds].timer = g_timer_new();
     requestArray[nfds].username = g_string_new(""); 
+    requestArray[nfds].password = g_string_new("");
 }
 
 void ShutdownSSL(SSL *ssl) {
@@ -78,35 +80,38 @@ void ShutdownSSL(SSL *ssl) {
 
 // free the client requests
 void freeRequest(int nfds) {
-    if(requestArray[nfds].host)
+    if(requestArray[nfds].host->len > 0)
         g_string_free(requestArray[nfds].host, TRUE);
-    if(requestArray[nfds].path)
+    if(requestArray[nfds].path->len > 0)
         g_string_free(requestArray[nfds].path, TRUE);
-    if(requestArray[nfds].pathPage)
+    if(requestArray[nfds].pathPage->len > 0)
         g_string_free(requestArray[nfds].pathPage, TRUE);
-    if(requestArray[nfds].messageBody)
+    if(requestArray[nfds].messageBody->len > 0)
         g_string_free(requestArray[nfds].messageBody, TRUE);
-    if(requestArray[nfds].query)
+    if(requestArray[nfds].query->len > 0)
         g_string_free(requestArray[nfds].query, TRUE);
     if(requestArray[nfds].timer)
         g_timer_destroy(requestArray[nfds].timer);
-    if(requestArray[nfds].cookie)
+    if(requestArray[nfds].cookie->len > 0)
         g_string_free(requestArray[nfds].cookie, TRUE);
-    if(requestArray[nfds].authorization)
+    if(requestArray[nfds].authorization->len > 0)
         g_string_free(requestArray[nfds].authorization, TRUE);
-    if(requestArray[nfds].gMessage)
+    if(requestArray[nfds].gMessage->len > 0)
         g_string_free(requestArray[nfds].gMessage, TRUE);
-    if(requestArray[nfds].response)
+    if(requestArray[nfds].response->len > 0)
         g_string_free(requestArray[nfds].response, TRUE); 
-    ShutdownSSL(requestArray[nfds].ssl); 
-    if(requestArray[nfds].username) 
+    if(requestArray[nfds].ssl != NULL)
+        ShutdownSSL(requestArray[nfds].ssl); 
+    if(requestArray[nfds].username->len > 0) 
         g_string_free(requestArray[nfds].username, TRUE); 
+    if(requestArray[nfds].password->len > 0)
+        g_string_free(requestArray[nfds].password, TRUE);
 }
 
 void InitializeSSL() {
-    SSL_load_error_strings(); 
+    //SSL_load_error_strings(); 
     SSL_library_init(); 
-    OpenSSL_add_all_algorithms(); 
+    //OpenSSL_add_all_algorithms(); 
 }
 
 void DestroySSL() {
@@ -470,13 +475,15 @@ GString *createHash(GString *salt, GString *password) {
 }
 
 
-void extractUserInformation(int nfds, GString* username, GString* password) {
+void extractUserInformation(int nfds) {
     // Get the authorization from the client
     GString *authorizationHeader = requestArray[nfds].authorization; 
     gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
    
     // if there is no autharization return
     if (g_strv_length(splitAuth) == 0) {
+        g_string_free(authorizationHeader, TRUE);
+        g_strfreev(splitAuth);
         return; 
     }
 
@@ -498,12 +505,11 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
     //Get the username and password by splitting the credentials
     splitAuth = g_strsplit((char *) credentials, ":", 0); 
 
-    g_string_append(username, splitAuth[0]); 
-    g_string_append(password, splitAuth[1]);
+    // Add the password to the struct 
+    g_string_append(requestArray[nfds].password, splitAuth[1]);
  
     //Add the username to the struct
     g_string_append(requestArray[nfds].username, splitAuth[0]); 
-    
     g_strfreev(splitAuth); 
     g_string_free(authorizationHeader, TRUE); 
 
@@ -511,12 +517,10 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
 
 int validateAuthentication(int nfds) {
     // Get the hashed username and password
-    GString* username = g_string_new(""); 
-    GString* password = g_string_new("");
-    extractUserInformation(nfds, username, password);
+    extractUserInformation(nfds);
 
     // If there was no user information, return a 401 page to the client, since they cannot be authenticated
-    if (!g_strcmp0(username->str, "") || !g_strcmp0(password->str, "")) {
+    if (!g_strcmp0(requestArray[nfds].username->str, "") || !g_strcmp0(requestArray[nfds].password->str, "")) {
         return FALSE;
     }
 
@@ -524,69 +528,55 @@ int validateAuthentication(int nfds) {
     GKeyFile *keyfile = g_key_file_new(); 
     GError* keyFileError = NULL; 
     if (!g_key_file_load_from_file(keyfile, "database.ini", G_KEY_FILE_NONE, &keyFileError)) {
-
         // An error occured, print the error and return
         fprintf(stdout, "An error occured in opening the keyfile: %s\n", keyFileError->message);
-        g_string_free(username, TRUE); 
-        g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
-        g_error_free(keyFileError);
         return FALSE; 
     }
-
+    fprintf(stdout, "requestArray[nfds].username->str : %s\n", requestArray[nfds].username->str);
+    fflush(stdout);
     // Get dat salt
     GString *salt = g_string_new("");
-    gchar *pulledSalt =  g_key_file_get_string(keyfile, "salts", username->str, NULL); 
+    gchar *pulledSalt =  g_key_file_get_string(keyfile, "salts", requestArray[nfds].username->str, NULL); 
     if (pulledSalt != NULL) {
-        g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
+        g_string_append(salt, g_key_file_get_string(keyfile, "salts", requestArray[nfds].username->str, NULL)); 
     }
   
     //If salt is missing, then you have to find some other way to get high
     if (salt->len == 0) {
         fprintf(stdout, "Error: Salt is missing. We're all very salty about that. Sorry.\n"); 
-        fflush(stdout); 
-        g_string_free(username, TRUE); 
-        g_string_free(password, TRUE); 
+        fflush(stdout);  
         g_key_file_free(keyfile);
-        g_error_free(keyFileError);
         g_string_free(salt, TRUE);
         return FALSE; 
     }
 
 
     GString *pulledPassword = g_string_new("");
-    g_string_append(pulledPassword, g_key_file_get_value(keyfile, "passwords", username->str, NULL));     
+    g_string_append(pulledPassword, g_key_file_get_value(keyfile, "passwords", requestArray[nfds].username->str, NULL));     
     //If there is no stored password, there is an error and the user cannot be authenticated
     if (pulledPassword->len == 0) {
         fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
         fflush(stdout); 
-        g_string_free(username, TRUE); 
-        g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
-        g_error_free(keyFileError);
         g_string_free(salt, TRUE); 
         g_string_free(pulledPassword, TRUE); 
         return FALSE; 
     }
     //g_string_append(storedPassword, pulledPassword->str); 
-    GString *hashedPassword = createHash(salt, password);  
+    GString *hashedPassword = createHash(salt, requestArray[nfds].password);  
       
     // Only authorize if the password in the database matches the password sent by the client
     if (!g_strcmp0(pulledPassword->str, hashedPassword->str)) {
         fprintf(stdout, "Error: Incorrect password. Cannot authenticate.\n"); 
         fflush(stdout); 
-        g_string_free(username, TRUE); 
-        g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
-        g_error_free(keyFileError);
         g_string_free(salt, TRUE); 
         g_string_free(pulledPassword, TRUE);
         g_string_free(hashedPassword, TRUE);  
         return FALSE; 
     }
     // Free variablea
-    g_string_free(username, TRUE); 
-    g_string_free(password, TRUE); 
     g_key_file_free(keyfile); 
     g_string_free(salt, TRUE); 
     g_string_free(pulledPassword, TRUE);
@@ -716,7 +706,6 @@ void initializeDatabase(){
         g_string_free(password, TRUE);
         g_string_free(hashedPassword, TRUE);
         g_key_file_free(keyfile);
-        g_error_free(error);
         exit(1);
     }
 
@@ -735,6 +724,10 @@ void signalHandler(int signal) {
         fflush(stdout);
         // Close the connection
         exit(1);
+        
+        for(int i = 0; i < nfds; i++) {
+            freeRequest(i);
+        }
     }
 }
 
@@ -909,39 +902,41 @@ int main(int argc, char *argv[])
                     else {
                         receivedMsgSize = recv(pollfds[i].fd, message, sizeof(message), 0);
                     }
-
-                    message[receivedMsgSize] = '\0';
-                    // Check if client closed the connection
-                    if (receivedMsgSize == 0) { 
-                         closeConn = TRUE;
-                         fprintf(stdout, "Client closed the connection\n");
-                         fflush(stdout);
-                         requestArray[i].keepAlive = FALSE;
-                    }
-
-                    fprintf(stdout, "received: \n %s \n", message); 
-                    fflush(stdout);  
-
-                    if(closeConn == FALSE) {  
-                        initRequest(i);
-                        g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
-             
-                        // Check if it is Http or Https, wite or send data
-                        int createNoError = createRequest(i);
-                        if (requestArray[i].ssl != NULL) {
-                            SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
-                        }
-                        else {
-                            send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0); 
-                        }
+                    if(receivedMsgSize != 0) { 
                         
-                        // If the method is unknown close the connection
-                        if(!createNoError) {
-                            closeConn = TRUE;
-                            fprintf(stdout, "Bad request\n");
-                            fflush(stdout);
+                        message[receivedMsgSize] = '\0';
+                        // Check if client closed the connection
+                        if (receivedMsgSize == 0) { 
+                             closeConn = TRUE;
+                             fprintf(stdout, "Client closed the connection\n");
+                             fflush(stdout);
+                             requestArray[i].keepAlive = FALSE;
                         }
-                        // Not keep-alive connection, close the connection 
+    
+                        fprintf(stdout, "received: \n %s \n", message); 
+                        fflush(stdout);  
+  
+                        if(closeConn == FALSE) {  
+                            initRequest(i);
+                            g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
+               
+                            // Check if it is Http or Https, wite or send data
+                            int createNoError = createRequest(i);
+                            if (requestArray[i].ssl != NULL) {
+                                SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
+                            }
+                            else {
+                                send(pollfds[i].fd, requestArray[i].response->str, requestArray[i].response->len, 0); 
+                            }
+                        
+                            // If the method is unknown close the connection
+                            if(!createNoError) {
+                                closeConn = TRUE;
+                                fprintf(stdout, "Bad request\n");
+                                fflush(stdout);
+                            }
+                        }
+                            // Not keep-alive connection, close the connection 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
                         }  
