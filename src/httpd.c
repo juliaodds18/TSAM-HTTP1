@@ -502,8 +502,7 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
         return; 
     }
 
-    gsize length;
-  
+    gsize length; 
     guchar *credentials = g_base64_decode(splitAuth[1], &length); 
 
     //Done using splitAuth, free it
@@ -547,9 +546,13 @@ int validateAuthentication(int nfds) {
     }
 
     // Get dat salt
-    GString *salt = g_string_new(""); 
-    g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
-
+    GString *salt = g_string_new("");
+    gchar *pulledSalt =  g_key_file_get_string(keyfile, "salts", username->str, NULL); 
+    if (pulledSalt != NULL) {
+        fprintf(stdout, "hellooo from salt being appended isn't this fun? %s\n", pulledSalt); 
+fflush(stdout); 
+        g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
+    }
     fprintf(stdout, "salt: %s\n", salt->str);
 fflush(stdout);  
     //If salt is missing, then you have to find some other way to get high
@@ -565,8 +568,7 @@ fflush(stdout);
 
 
     GString *pulledPassword = g_string_new("");
-    g_string_append(pulledPassword, g_key_file_get_value(keyfile, "passwords", username->str, NULL));    
-    fprintf(stdout, "goddamn poassword: %s\n", pulledPassword->str); 
+    g_string_append(pulledPassword, g_key_file_get_value(keyfile, "passwords", username->str, NULL));     
     //If there is no stored password, there is an error and the user cannot be authenticated
     if (pulledPassword->len == 0) {
         fprintf(stdout, "Error: Password is not in store. Cannot authenticate.\n"); 
@@ -658,8 +660,8 @@ int createRequest(int nfds) {
                     if (!authorized) {
 fprintf(stdout, "not authorized\n"); 
 fflush(stdout); 
-                        sendForbidden(nfds); 
-                        logMessage(403, nfds); 
+                        sendUnauthorized(nfds); 
+                        logMessage(401, nfds); 
                     }
                     else {
 fprintf(stdout, "authorized\n"); 
