@@ -98,8 +98,7 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
-    ShutdownSSL(requestArray[nfds].ssl);
-      //  g_string_free(requestArray[nfds].response, TRUE);
+    ShutdownSSL(requestArray[nfds].ssl); 
     if(requestArray[nfds].username) 
         g_string_free(requestArray[nfds].username, TRUE); 
 }
@@ -117,7 +116,7 @@ void DestroySSL() {
 
 
 // Log the message
-void logMessage(int responseCode, int nfds) {
+void logMessage(int responseCode, int nfds, int authenticated) {
     // Create log file
     logFile = fopen("logfile.log", "a");
     if (logFile == NULL) {
@@ -143,10 +142,19 @@ void logMessage(int responseCode, int nfds) {
                                         responseCode);
     }
     else {
-         g_string_printf(logString, "%s : %s %s authenticated", timeBuffer,
+        if (authenticated) { 
+            g_string_printf(logString, "%s : %s %s authenticated\n", timeBuffer,
                                         requestArray[nfds].host->str,
                                         requestArray[nfds].username->str
                                         );
+        }
+        else { 
+            g_string_printf(logString, "%s : %s %s authentication error\n", timeBuffer,
+                                        requestArray[nfds].host->str,
+                                        requestArray[nfds].username->str
+                                        );
+ 
+        } 
     }
 
     // Insert into the log file
@@ -435,10 +443,7 @@ int parseHeader(int nfds) {
 
 GString *createHash(GString *salt, GString *password) {
     // add the password to the salt 
-    g_string_append(salt, password->str);
-fprintf(stdout, "salt: %s\n", salt->str); 
-fprintf(stdout, "password: %s\n", password->str);
-fflush(stdout);  
+    g_string_append(salt, password->str);  
     // buffer to store the hashed password
     char hashedPassword[129];
 
@@ -449,6 +454,7 @@ fflush(stdout);
     SHA512_Update(&sha256, salt->str, salt->len);
     SHA512_Final(hash, &sha256);   
 
+    // Hash the string multiple times
     int i = 0;                                                                                    
     for (i = 0; i < 10000; i++)
     {
@@ -458,16 +464,18 @@ fflush(stdout);
         SHA512_Final(hash, &sha256);
     }
 
+    // set nullterminater at the end
     hashedPassword[128] = '\0';
     return g_string_new(hashedPassword);
 }
 
 
 void extractUserInformation(int nfds, GString* username, GString* password) {
-
+    // Get the authorization from the client
     GString *authorizationHeader = requestArray[nfds].authorization; 
     gchar **splitAuth = g_strsplit(authorizationHeader->str, " ", 0);
    
+    // if there is no autharization return
     if (g_strv_length(splitAuth) == 0) {
         return; 
     }
@@ -479,6 +487,7 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
         return; 
     }
 
+    // Decode the password
     gsize length; 
     guchar *credentials = g_base64_decode(splitAuth[1], &length); 
 
@@ -501,21 +510,18 @@ void extractUserInformation(int nfds, GString* username, GString* password) {
 }
 
 int validateAuthentication(int nfds) {
-    
+    // Get the hashed username and password
     GString* username = g_string_new(""); 
     GString* password = g_string_new("");
-    
     extractUserInformation(nfds, username, password);
 
     // If there was no user information, return a 401 page to the client, since they cannot be authenticated
     if (!g_strcmp0(username->str, "") || !g_strcmp0(password->str, "")) {
         return FALSE;
     }
-    fprintf(stdout, "username: %s, password: %s\n", username->str, password->str);  
-    fflush(stdout); 
 
+    // Opne the Keyfile to get username and password from user 
     GKeyFile *keyfile = g_key_file_new(); 
-
     GError* keyFileError = NULL; 
     if (!g_key_file_load_from_file(keyfile, "database.ini", G_KEY_FILE_NONE, &keyFileError)) {
 
@@ -524,6 +530,7 @@ int validateAuthentication(int nfds) {
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
+        g_error_free(keyFileError);
         return FALSE; 
     }
 
@@ -531,12 +538,9 @@ int validateAuthentication(int nfds) {
     GString *salt = g_string_new("");
     gchar *pulledSalt =  g_key_file_get_string(keyfile, "salts", username->str, NULL); 
     if (pulledSalt != NULL) {
-        fprintf(stdout, "hellooo from salt being appended isn't this fun? %s\n", pulledSalt); 
-fflush(stdout); 
         g_string_append(salt, g_key_file_get_string(keyfile, "salts", username->str, NULL)); 
     }
-    fprintf(stdout, "salt: %s\n", salt->str);
-fflush(stdout);  
+  
     //If salt is missing, then you have to find some other way to get high
     if (salt->len == 0) {
         fprintf(stdout, "Error: Salt is missing. We're all very salty about that. Sorry.\n"); 
@@ -544,6 +548,7 @@ fflush(stdout);
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
+        g_error_free(keyFileError);
         g_string_free(salt, TRUE);
         return FALSE; 
     }
@@ -558,14 +563,12 @@ fflush(stdout);
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
+        g_error_free(keyFileError);
         g_string_free(salt, TRUE); 
         g_string_free(pulledPassword, TRUE); 
         return FALSE; 
     }
     //g_string_append(storedPassword, pulledPassword->str); 
-fprintf(stdout, "after getting password whoo\n"); 
-fflush(stdout); 
-
     GString *hashedPassword = createHash(salt, password);  
       
     // Only authorize if the password in the database matches the password sent by the client
@@ -575,20 +578,21 @@ fflush(stdout);
         g_string_free(username, TRUE); 
         g_string_free(password, TRUE); 
         g_key_file_free(keyfile);
+        g_error_free(keyFileError);
         g_string_free(salt, TRUE); 
         g_string_free(pulledPassword, TRUE);
         g_string_free(hashedPassword, TRUE);  
         return FALSE; 
     }
+    // Free variablea
     g_string_free(username, TRUE); 
     g_string_free(password, TRUE); 
-    g_key_file_free(keyfile);
+    g_key_file_free(keyfile); 
     g_string_free(salt, TRUE); 
     g_string_free(pulledPassword, TRUE);
     g_string_free(hashedPassword, TRUE);  
      
     return TRUE;  
-
 }
 
 // Create the request for the client
@@ -629,59 +633,55 @@ int createRequest(int nfds) {
     if(requestOk) {
         if(g_strcmp0(requestArray[nfds].pathPage->str, "/secret") == 0 || g_strcmp0(requestArray[nfds].pathPage->str, "/login") == 0) {
             // There is SSL present, but only allow access if authorization is validated           
-                if (g_strcmp0(requestArray[nfds].authorization->str, "") != 0) {
-                    int authorized = validateAuthentication(nfds);
-                    if (!authorized) {
-fprintf(stdout, "not authorized\n"); 
-fflush(stdout); 
-                        sendUnauthorized(nfds); 
-                        logMessage(401, nfds); 
-                    }
-                    else {
-fprintf(stdout, "authorized\n"); 
-fflush(stdout); 
-                        sendOKRequest(nfds); 
-                        logMessage(200, nfds);  
-                    }
-                }    
-                else {
+            if (g_strcmp0(requestArray[nfds].authorization->str, "") != 0) {
+                int authorized = validateAuthentication(nfds);
+                if (!authorized) {
                     sendUnauthorized(nfds); 
-                    logMessage(401, nfds);
-                } 
-            }
-     
+                    logMessage(401, nfds, FALSE); 
+                }
+                else {
+                    // Send ok response
+                    sendOKRequest(nfds); 
+                    logMessage(200, nfds, TRUE);  
+                }
+            }    
+            else {
+                // Send unauthorized response
+                sendUnauthorized(nfds); 
+                logMessage(401, nfds, FALSE);
+            } 
+        }  
         else { 
             // Send ok response
             sendOKRequest(nfds);
-            logMessage(200, nfds);
+            logMessage(200, nfds, FALSE);
         }
     }
     else {
         // Send not implement response
         sendNotImplemented(nfds);
-        logMessage(501, nfds);
+        logMessage(501, nfds, FALSE);
     }
 
     return requestOk;
 }
 
+// Create salt to hash with the password
 void createSalt(GString *salt) {
+    // Get time to set as seed
     struct timeval tv;
     static char result[64];
-
     gettimeofday(&tv, (struct timezone *) 0);
     strcat(result, l64a(tv.tv_usec));
     strcat(result, l64a(tv.tv_sec + getpid() + clock()));
 
+    // Make random ascii value 
     for (int i = 0; i < 64; i++)
     {
         result[i] = ((rand() % (0x7f - 0x34)) + 0x34);
     }
 
     result[63] = '\0';
-    
-    fprintf(stdout, "salt: %s\n", result);
-    fflush(stdout);
 
     g_string_append(salt, result);
         
@@ -700,7 +700,7 @@ void initializeDatabase(){
     GString *hashedPassword = g_string_new("");
     // Hash the salt and the password 
     hashedPassword = createHash(salt, password);
-fprintf(stdout, "hashedpassword: %s\n", hashedPassword->str);  
+ 
     // insert into the keyfile
     g_key_file_set_string(keyfile, "passwords", "admin", hashedPassword->str);
     g_key_file_set_string(keyfile, "salts", "admin", salt->str);
@@ -716,6 +716,7 @@ fprintf(stdout, "hashedpassword: %s\n", hashedPassword->str);
         g_string_free(password, TRUE);
         g_string_free(hashedPassword, TRUE);
         g_key_file_free(keyfile);
+        g_error_free(error);
         exit(1);
     }
 
@@ -732,7 +733,6 @@ void signalHandler(int signal) {
     if (signal == SIGINT) {
         fprintf(stdout, "Caught SIGINT, shutting down all connections\n");
         fflush(stdout);
-
         // Close the connection
         exit(1);
     }
@@ -741,9 +741,7 @@ void signalHandler(int signal) {
 int main(int argc, char *argv[])
 {
     fprintf(stdout, "Connected to the Emre Can server\n");
-    fflush(stdout);
-   // GString *salt = g_string_new("");
-   // createSalt(salt);    
+    fflush(stdout);    
 
     // Port number is missing, nothing to be done 
     if (argc != 3) {
@@ -767,8 +765,6 @@ int main(int argc, char *argv[])
     int closeConn = FALSE;
     int shrinkArray = FALSE;
     socklen_t len;
-    SSL_CTX *ctx; 
-    //SSL *ssl; 
 
     // Get ports
     sscanf(argv[1], "%d", &portHttp);
@@ -777,7 +773,8 @@ int main(int argc, char *argv[])
     initializeDatabase();
     // Initialize the SSL functions, in order to be able to use SSL 
     InitializeSSL();
-    ctx = SSL_CTX_new(SSLv23_method()); 
+    SSL_CTX *ctx;
+    ctx = SSL_CTX_new(SSLv23_method());
 
     // Create and bind a TCP socket.
     sockfdHttp = socket(AF_INET, SOCK_STREAM, 0);
@@ -864,7 +861,7 @@ int main(int argc, char *argv[])
                     // handle dedicated to this connection. 
                     len = (socklen_t) sizeof(requestArray[nfds].client);
                     newfd = accept(sockfdHttp, (struct sockaddr *) &requestArray[nfds].client, &len);
-
+                    
                     // Add new connection to pollfd
                     pollfds[nfds].fd = newfd;
                     pollfds[nfds].events = POLLIN;
@@ -988,5 +985,6 @@ int main(int argc, char *argv[])
             }
         }
     }
+    SSL_CTX_free(ctx);
 }
 
