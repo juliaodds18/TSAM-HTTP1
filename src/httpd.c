@@ -42,7 +42,6 @@ typedef struct Request {
     int version;
     int keepAlive;
     SSL *ssl;
-    BIO *bio_ssl;
 } Request;
 
 /********* PUBLIC VARIABLES **********/
@@ -70,6 +69,11 @@ void initRequest(int nfds) {
     requestArray[nfds].timer = g_timer_new();
 }
 
+void ShutdownSSL(SSL *ssl) {
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+}
+
 // free the client requests
 void freeRequest(int nfds) {
     if(requestArray[nfds].host)
@@ -92,6 +96,7 @@ void freeRequest(int nfds) {
         g_string_free(requestArray[nfds].gMessage, TRUE);
     if(requestArray[nfds].response)
         g_string_free(requestArray[nfds].response, TRUE); 
+    ShutdownSSL(requestArray[nfds].ssl);
 }
 
 void InitializeSSL() {
@@ -105,10 +110,6 @@ void DestroySSL() {
     EVP_cleanup(); 
 }
 
-void ShutdownSSL(SSL *ssl) {
-    SSL_shutdown(ssl); 
-    SSL_free(ssl); 
-}
 
 // Log the message
 void logMessage(int responseCode, int nfds) {
@@ -341,9 +342,6 @@ int ParsingFirstLine(int nfds) {
         requestOk = FALSE;
     }
 
-fprintf(stdout, "firstline[0]: %s\n", firstLine[0]); 
-fflush(stdout); 
-
     // paring the path
     g_string_assign(requestArray[nfds].path, firstLine[1]);
 
@@ -392,14 +390,17 @@ int parseHeader(int nfds) {
             }
         }
 
+        // Check if client sent a cookie
         if (!(g_strcmp0(toLowerDelim, "cookie"))) {
             g_string_assign(requestArray[nfds].cookie, g_strstrip(splitOnDelim[1]));
 	}
 
+        // Check if client sent authorization
         if (!(g_strcmp0(toLowerDelim, "authorization"))) {
             g_string_assign(requestArray[nfds].authorization, g_strstrip(splitOnDelim[1]));
         }
 
+        // Free variables that are not used anymore
         g_strfreev(splitOnDelim);
         g_free(toLowerDelim);
     }
@@ -419,9 +420,6 @@ int parseHeader(int nfds) {
 }
 
 GString *createHash(GString *salt, GString *password) {
- fprintf(stdout, "salt: %s\n", salt->str); 
-fprintf(stdout, "password: %s\n", password->str);
-fflush(stdout);  
     // add the password to the salt 
     g_string_append(salt, password->str);
 fprintf(stdout, "salt: %s\n", salt->str); 
@@ -820,10 +818,7 @@ int main(int argc, char *argv[])
         fprintf(stdout, "Not a match\nExiting  ..."); 
         exit(-1); 
     }   
-    
-    //ssl = SSL_new(ctx); 
-    
-    
+     
     // Initialize the pollfd structure
     memset(pollfds, 0, sizeof(pollfds));
     pollfds[0].fd = sockfdHttp;
@@ -911,16 +906,12 @@ int main(int argc, char *argv[])
                     fprintf(stdout, "received: \n %s \n", message); 
                     fflush(stdout);  
 
-                    if(closeConn == FALSE) {
-fprintf(stdout, "i: %d\n", i); 
-fflush(stdout);   
+                    if(closeConn == FALSE) {  
                         initRequest(i);
                         g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
              
                         // Check if it is Http or Https, wite or send data
                         int createNoError = createRequest(i);
-fprintf(stdout, "returned from createrequest\n"); 
-fflush(stdout);  
                         if (requestArray[i].ssl != NULL) {
                             SSL_write(requestArray[i].ssl, requestArray[i].response->str, requestArray[i].response->len); 
                         }
@@ -937,9 +928,7 @@ fflush(stdout);
                         // Not keep-alive connection, close the connection 
                         if (!requestArray[i].keepAlive) {
                             closeConn = TRUE;
-                        } 
-fprintf(stdout, "bleble\n"); 
-fflush(stdout); 
+                        }  
                     }
                 }
             } 
