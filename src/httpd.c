@@ -566,7 +566,8 @@ fprintf(stdout, "after salt whoo\n");
 fflush(stdout); 
     // Get the password from the database 
     GString *storedPassword = g_string_new(""); 
-    gchar *pulledPassword = g_key_file_get_string(keyfile, "passwords", username->str, NULL); 
+    GString * pulledPassword = g_string_new("");
+    g_string_append(pulledPassword, g_key_file_get_string(keyfile, "passwords", username->str, NULL)); 
    
     //If there is no stored password, there is an error and the user cannot be authenticated
     if (pulledPassword == NULL) {
@@ -579,7 +580,7 @@ fflush(stdout);
         g_string_free(storedPassword, TRUE); 
         return FALSE; 
     }
-    g_string_append(storedPassword, pulledPassword); 
+    g_string_append(storedPassword, pulledPassword->str); 
 fprintf(stdout, "after getting password whoo\n"); 
 fflush(stdout); 
 
