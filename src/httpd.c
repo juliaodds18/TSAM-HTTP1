@@ -420,7 +420,7 @@ int parseHeader(int nfds) {
         // Check if client sent a cookie
         if (!(g_strcmp0(toLowerDelim, "cookie"))) {
             g_string_assign(requestArray[nfds].cookie, g_strstrip(splitOnDelim[1]));
-	}
+    }
 
         // Check if client sent authorization
         if (!(g_strcmp0(toLowerDelim, "authorization"))) {
@@ -917,7 +917,7 @@ int main(int argc, char *argv[])
                         fflush(stdout);  
   
                         if(closeConn == FALSE) {  
-                        //    initRequest(i);
+                            initRequest(i);
                             g_string_append_len(requestArray[i].gMessage, message, receivedMsgSize);      
                
                             // Check if it is Http or Https, wite or send data
@@ -982,4 +982,5 @@ int main(int argc, char *argv[])
     }
     SSL_CTX_free(ctx);
 }
+
 
